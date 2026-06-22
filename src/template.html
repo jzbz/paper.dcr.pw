@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en" data-look="aurora">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Decred Paper Wallet — offline cold-storage generator</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,__FAVICON_B64__">
+<style>
+/* ---- embedded fonts (offline, no network) ---- */
+@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:400 600;font-display:swap;src:url(data:font/woff2;base64,__FONT_GROTESK_B64__) format('woff2');}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400 500;font-display:swap;src:url(data:font/woff2;base64,__FONT_MONO_B64__) format('woff2');}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:#05100f;}
+::selection{background:rgba(46,216,167,.3);}
+
+/* ---- theme (Aurora) ---- */
+:root{
+  --bg:radial-gradient(135% 120% at 50% 0%, #08201b 0%, #06140f 50%, #040d0a 100%);
+  --glow1:radial-gradient(circle, rgba(46,216,167,.6), transparent 62%);
+  --glow2:radial-gradient(circle, rgba(28,150,120,.5), transparent 65%);
+  --glow3:radial-gradient(circle, rgba(80,240,200,.42), transparent 62%);
+  --accent:#2ed8a7; --accent-glow:rgba(46,216,167,.5); --accent-border:rgba(46,216,167,.5);
+  --accent-fill:linear-gradient(180deg,#46e6bb,#27c79a);
+  --panel-bg:rgba(16,38,34,.5); --panel-border:rgba(125,235,205,.16);
+  --card-sheen:rgba(130,240,205,.08); --blur:22px;
+  --danger:#ff9e8a;
+}
+
+@keyframes auroraA{0%,100%{transform:translate(-8%,-4%) scale(1.05);}50%{transform:translate(10%,6%) scale(1.25);}}
+@keyframes auroraB{0%,100%{transform:translate(6%,8%) scale(1.15);}50%{transform:translate(-10%,-6%) scale(1);}}
+@keyframes auroraC{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-6%,10%) scale(1.2);}}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+#app{position:relative;min-height:100vh;width:100%;overflow:hidden;background:var(--bg);font-family:'Space Grotesk',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#e9f6f1;}
+#aurora{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;}
+.blob{position:absolute;border-radius:50%;}
+.blob1{top:-18%;left:-6%;width:62vw;height:62vw;filter:blur(90px);opacity:.55;background:var(--glow1);animation:auroraA 19s ease-in-out infinite;}
+.blob2{bottom:-22%;right:-8%;width:55vw;height:55vw;filter:blur(100px);opacity:.5;background:var(--glow2);animation:auroraB 23s ease-in-out infinite;}
+.blob3{top:24%;right:18%;width:34vw;height:34vw;filter:blur(110px);opacity:.32;background:var(--glow3);animation:auroraC 27s ease-in-out infinite;}
+.vignette{position:absolute;inset:0;opacity:.5;background:radial-gradient(120% 90% at 50% -10%, transparent 40%, rgba(0,0,0,.55) 100%);}
+.wrap{position:relative;z-index:1;max-width:1140px;margin:0 auto;padding:40px 28px 80px;}
+
+/* header */
+.hd{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:34px;}
+.hd-l{display:flex;align-items:center;gap:16px;}
+.mark{width:46px;height:46px;flex:none;}
+.mark svg{width:100%;height:100%;display:block;border-radius:12px;box-shadow:0 6px 20px -4px var(--accent-glow);}
+.title{font-size:21px;font-weight:600;letter-spacing:-.01em;line-height:1;white-space:nowrap;}
+.subtitle{font-size:12.5px;color:rgba(220,242,235,.55);margin-top:5px;letter-spacing:.02em;}
+.badge{display:flex;align-items:center;gap:9px;padding:9px 15px;border-radius:999px;background:rgba(46,216,167,.08);border:1px solid rgba(46,216,167,.22);font-size:12.5px;color:var(--accent);font-weight:500;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent-glow);flex:none;}
+
+/* panels */
+.panel{position:relative;background:var(--panel-bg);border:1px solid var(--panel-border);backdrop-filter:blur(var(--blur)) saturate(1.15);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.15);}
+.controls{padding:22px 24px 42px;border-radius:20px;box-shadow:0 24px 60px -30px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.06);margin-bottom:22px;}
+.controls-row{display:flex;align-items:flex-end;justify-content:space-between;gap:26px;flex-wrap:wrap;}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:rgba(220,242,235,.45);margin-bottom:9px;}
+.lbl .soft{text-transform:none;letter-spacing:0;opacity:.7;}
+.seg{display:inline-flex;padding:4px;border-radius:12px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.06);gap:2px;flex-wrap:wrap;}
+.seg button{padding:9px 15px;border:none;border-radius:9px;cursor:pointer;font-family:'Space Grotesk';font-weight:500;font-size:13.5px;transition:all .18s;background:transparent;color:rgba(220,242,235,.6);}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#04130e;box-shadow:0 4px 14px -4px var(--accent-glow);}
+.seg button .sub{display:block;font-size:10px;opacity:.7;font-weight:400;letter-spacing:.02em;}
+input.text{width:230px;padding:11px 14px;border-radius:11px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);color:#dff7ee;font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;}
+input.text:focus{border-color:var(--accent-border);}
+input.text:disabled{opacity:.4;cursor:not-allowed;}
+.pass-wrap{position:relative;}
+.pass-note{position:absolute;top:100%;left:0;margin-top:7px;font-size:11px;color:rgba(220,242,235,.4);max-width:300px;line-height:1.4;}
+.btn{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-family:'Space Grotesk';font-weight:600;font-size:14.5px;border-radius:12px;transition:filter .15s, background .15s;}
+.btn-primary{padding:13px 22px;border:1px solid var(--accent-border);background:var(--accent-fill);color:#04130e;box-shadow:0 12px 30px -10px var(--accent-glow);}
+.btn-primary:hover{filter:brightness(1.08);}
+.btn-ghost{padding:14px 22px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#dff7ee;font-weight:500;font-size:14px;}
+.btn-ghost:hover{background:rgba(255,255,255,.08);}
+.spinner{width:14px;height:14px;border:2px solid rgba(4,19,14,.35);border-top-color:#04130e;border-radius:50%;animation:spin .7s linear infinite;display:none;}
+#app.gen .spinner{display:inline-block;}
+
+/* wallet card */
+.card{border-radius:24px;overflow:hidden;box-shadow:0 40px 90px -40px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.07);}
+.card .sheen{position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg, var(--card-sheen) 0%, transparent 38%);}
+.crow{position:relative;display:grid;grid-template-columns:1fr auto;gap:28px;padding:30px;border-bottom:1px solid rgba(255,255,255,.07);}
+.crow.seedrow{display:block;}
+.chl{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.tag{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;}
+.tag.green{color:var(--accent);}
+.tag.coral{color:var(--danger);}
+.tag.green .dot{background:var(--accent);box-shadow:0 0 9px var(--accent-glow);}
+.tag.coral .dot{background:var(--danger);box-shadow:0 0 9px rgba(255,158,138,.6);}
+.hint{font-size:12px;color:rgba(220,242,235,.45);}
+.hint.coral{color:rgba(255,158,138,.6);}
+.mono{font-family:'JetBrains Mono',monospace;}
+.keyval{font-family:'JetBrains Mono',monospace;font-size:17px;line-height:1.5;word-break:break-all;color:#eafdf6;letter-spacing:.01em;}
+.keyval.coral{font-size:16px;color:#ffe9e3;}
+.btnbar{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+.copybtn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;cursor:pointer;font-family:'Space Grotesk';font-weight:500;font-size:13px;transition:all .18s;background:rgba(255,255,255,.06);color:#dff7ee;border:1px solid rgba(255,255,255,.12);}
+.copybtn.danger{background:rgba(255,158,138,.1);color:#ffb5a6;border:1px solid rgba(255,158,138,.3);}
+.copybtn.copied{background:var(--accent);color:#04130e;border:1px solid var(--accent-border);}
+.pathchip{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:10px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.07);font-size:12.5px;color:rgba(220,242,235,.55);font-family:'JetBrains Mono',monospace;}
+.qrwrap{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.qr{position:relative;width:148px;height:148px;padding:11px;border-radius:14px;box-shadow:0 14px 34px -16px rgba(0,0,0,.7);}
+.qr.green{background:#eafdf6;}
+.qr.coral{background:#fdeee9;}
+.qr svg{width:100%;height:100%;display:block;}
+.qrcap{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(220,242,235,.4);}
+.qrcap.coral{color:rgba(255,158,138,.45);}
+.secret{filter:blur(8px);transition:filter .25s;}
+#app.revealed .secret{filter:none;}
+.seedgrid{position:relative;}
+.chip{display:inline-flex;align-items:center;gap:9px;padding:10px 14px 10px 11px;margin:0 9px 9px 0;border-radius:10px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.08);min-width:128px;}
+.chip .n{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);opacity:.85;min-width:20px;text-align:right;}
+.chip .w{font-family:'JetBrains Mono',monospace;font-size:14px;color:#eafdf6;}
+
+/* actions + notes */
+.actions{display:flex;gap:13px;margin-top:22px;flex-wrap:wrap;align-items:center;}
+.actions .btn-primary{padding:14px 24px;border-radius:13px;box-shadow:0 14px 34px -14px var(--accent-glow);}
+.meta{margin-left:auto;font-size:12px;color:rgba(220,242,235,.4);font-family:'JetBrains Mono',monospace;}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:30px;}
+.note{padding:18px 20px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);}
+.note h4{font-size:13.5px;font-weight:600;margin:0 0 7px;color:#eafdf6;}
+.note p{font-size:12.5px;line-height:1.55;color:rgba(220,242,235,.55);margin:0;}
+.note a{color:var(--accent);text-decoration:none;border-bottom:1px dotted var(--accent-border);cursor:pointer;}
+
+/* verify panel */
+.verify{margin-top:22px;border-radius:20px;padding:0;overflow:hidden;}
+.vhead{display:flex;align-items:center;gap:12px;padding:18px 24px;cursor:pointer;user-select:none;}
+.vhead .vh-title{font-size:14px;font-weight:600;color:#eafdf6;}
+.vhead .vh-sub{font-size:12px;color:rgba(220,242,235,.45);}
+.vhead .chev{margin-left:auto;transition:transform .2s;color:rgba(220,242,235,.5);font-size:13px;}
+#app.vopen .vhead .chev{transform:rotate(180deg);}
+.vbody{display:none;padding:0 24px 24px;}
+#app.vopen .vbody{display:block;}
+.varea{width:100%;min-height:84px;resize:vertical;padding:13px 15px;border-radius:12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);color:#dff7ee;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.55;outline:none;}
+.varea:focus{border-color:var(--accent-border);}
+.vrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px;}
+.vresult{margin-top:18px;}
+.verr{padding:12px 16px;border-radius:11px;background:rgba(255,158,138,.1);border:1px solid rgba(255,158,138,.3);color:#ffb5a6;font-size:13px;line-height:1.5;}
+.vok{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:start;padding:18px;border-radius:14px;background:rgba(0,0,0,.22);border:1px solid var(--panel-border);}
+.vkind{display:inline-block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);background:rgba(46,216,167,.1);border:1px solid var(--accent-border);padding:4px 10px;border-radius:999px;margin-bottom:12px;}
+.vfield{margin-bottom:12px;}
+.vfield .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:rgba(220,242,235,.4);margin-bottom:5px;}
+.vfield .v{font-family:'JetBrains Mono',monospace;font-size:14px;word-break:break-all;color:#eafdf6;}
+.vfield .v.coral{color:#ffe9e3;}
+#app.vrevealed .vsecret{filter:none;}
+.vsecret{filter:blur(7px);transition:filter .25s;}
+.smallbtn{padding:7px 13px;border-radius:9px;font-size:12px;}
+
+@media (max-width:720px){
+  .crow{grid-template-columns:1fr;}
+  .qrwrap{align-items:flex-start;}
+  .meta{margin-left:0;width:100%;}
+  .vok{grid-template-columns:1fr;}
+}
+
+/* ---------- print sheet ---------- */
+#printsheet{display:none;}
+@media print{
+  html,body{background:#fff !important;}
+  #app{display:none !important;}
+  #printsheet{display:block !important;font-family:'Space Grotesk',system-ui,sans-serif;color:#08110f;background:#fff;padding:6mm;}
+  @page{margin:12mm;size:portrait;}
+}
+.ps-head{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #0c1f1a;padding-bottom:10px;margin-bottom:18px;}
+.ps-mark{width:34px;height:34px;}
+.ps-mark svg{width:100%;height:100%;display:block;border-radius:7px;}
+.ps-box{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start;padding:16px;border-radius:10px;}
+.ps-box.pub{border:1.5px solid #cfe0da;align-items:center;}
+.ps-box.priv{border:1.5px solid #f0cfc7;background:#fdf6f4;}
+.ps-qr{width:150px;height:150px;padding:8px;background:#fff;}
+.ps-qr svg{width:100%;height:100%;display:block;}
+.ps-fold{display:flex;align-items:center;gap:10px;margin:14px 2px;color:#9aaaa5;}
+.ps-fold .ln{flex:1;border-top:2px dashed #b6c6c1;}
+.ps-chip{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:3px 7px;margin:0 4px 4px 0;border:1px solid #e6d2cc;border-radius:5px;background:#fff;}
+.ps-chip .n{color:#b23a2a;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="aurora" aria-hidden="true">
+    <div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div>
+    <div class="vignette"></div>
+  </div>
+
+  <div class="wrap">
+    <!-- header -->
+    <header class="hd">
+      <div class="hd-l">
+        <div class="mark"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="dcrgA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2ED6A1"/><stop offset="1" stop-color="#36C5E0"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#dcrgA)"/><path d="M43.21 40.24 51 48h-7.65L30.5 35.2h8a6.4 6.4 0 1 0 0-12.8h-2.6L29.43 16h8.72A12.82 12.82 0 0 1 51 28.8c0 5.2-2.3 9.26-7.79 11.44" fill="#fff"/><path d="M20.79 23.76 13 16h7.66l12.85 12.8h-7.95a6.4 6.4 0 1 0 0 12.8h2.59l6.42 6.4h-8.72A12.82 12.82 0 0 1 13 35.2c0-5.2 2.3-9.26 7.79-11.44" fill="#fff"/></svg></div>
+        <div>
+          <div class="title">Decred Paper Wallet</div>
+          <div class="subtitle">Cold-storage key generator · runs 100% offline</div>
+        </div>
+      </div>
+      <div class="badge"><span class="dot"></span>Runs offline · keys never leave this device</div>
+    </header>
+
+    <!-- controls -->
+    <section class="panel controls">
+      <div class="controls-row">
+        <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;">
+          <div>
+            <div class="lbl">Seed format</div>
+            <div class="seg" id="fmtGroup" role="group" aria-label="Seed format">
+              <button data-fmt="native33" aria-pressed="true">Decred<span class="sub">33 words · native</span></button>
+              <button data-fmt="bison15" aria-pressed="false">Cake · Bison<span class="sub">15 · DCRDEX</span></button>
+              <button data-fmt="bip39-12" aria-pressed="false">BIP39<span class="sub">12 words</span></button>
+              <button data-fmt="bip39-24" aria-pressed="false">BIP39<span class="sub">24 words</span></button>
+              <button data-fmt="hex" aria-pressed="false">Hex seed<span class="sub">raw 32 bytes</span></button>
+            </div>
+          </div>
+          <div>
+            <div class="lbl">Passphrase <span class="soft" id="passWordHint">(optional 25th word)</span></div>
+            <div class="pass-wrap">
+              <input id="pass" class="text" placeholder="leave blank for none" spellcheck="false" autocomplete="off" />
+              <div class="pass-note" id="passNote" style="display:none;">Native Decred seeds don't use a passphrase — the words are the seed.</div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="genBtn"><span class="spinner"></span><span id="genLabel">Generate</span></button>
+      </div>
+    </section>
+
+    <!-- wallet card -->
+    <section class="panel card">
+      <div class="sheen"></div>
+
+      <!-- public address -->
+      <div class="crow">
+        <div style="min-width:0;">
+          <div class="chl">
+            <span class="tag green"><span class="dot"></span>Public address</span>
+            <span class="hint">share this to receive DCR</span>
+          </div>
+          <div class="keyval" id="addr">—</div>
+          <div class="btnbar">
+            <button class="copybtn" id="copyAddr" data-copy="addr">⧉ Copy address</button>
+            <span class="pathchip" id="path">m/44'/42'/0'/0/0</span>
+          </div>
+        </div>
+        <div class="qrwrap">
+          <div class="qr green" id="qrAddr"></div>
+          <div class="qrcap">scan to receive</div>
+        </div>
+      </div>
+
+      <!-- private key -->
+      <div class="crow">
+        <div style="min-width:0;">
+          <div class="chl">
+            <span class="tag coral"><span class="dot"></span>Private key · WIF</span>
+            <span class="hint coral">never share — full spend access</span>
+          </div>
+          <div class="keyval coral secret" id="wif">—</div>
+          <div class="btnbar">
+            <button class="copybtn" id="revealBtn">👁 Reveal secrets</button>
+            <button class="copybtn danger" id="copyWif" data-copy="wif">⧉ Copy private key</button>
+          </div>
+        </div>
+        <div class="qrwrap">
+          <div class="qr coral secret" id="qrWif"></div>
+          <div class="qrcap coral">secret</div>
+        </div>
+      </div>
+
+      <!-- seed phrase -->
+      <div class="crow seedrow">
+        <div class="chl">
+          <span class="tag coral"><span class="dot"></span><span id="seedTitle">Recovery seed phrase</span></span>
+          <span class="hint coral" id="seedNote">write it down, keep it secret</span>
+        </div>
+        <div class="seedgrid secret" id="seedGrid"></div>
+        <div class="keyval coral secret" id="seedHex" style="display:none;font-size:15px;"></div>
+        <div id="bdayLine" style="display:none;margin-top:12px;font-size:12px;color:rgba(220,242,235,.5);font-family:'JetBrains Mono',monospace;">Wallet birthday <span id="bdayVal" style="color:var(--accent);"></span> — encoded in the seed for fast SPV restore.</div>
+        <div class="btnbar">
+          <button class="copybtn danger" id="copySeed" data-copy="seed">⧉ Copy seed phrase</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- actions -->
+    <div class="actions">
+      <button class="btn btn-primary" id="printBtn"><span style="font-size:16px;">⎙</span> Print paper wallet</button>
+      <button class="btn btn-ghost" id="newBtn">↻ New wallet</button>
+      <div class="meta" id="meta">Decred mainnet · secp256k1 · blake256r14</div>
+    </div>
+
+    <!-- verify / restore -->
+    <section class="panel verify">
+      <div class="vhead" id="vToggle">
+        <span class="vh-title">Verify or import a seed</span>
+        <span class="vh-sub">re-derive an address offline, or use your own seed as the paper wallet</span>
+        <span class="chev">▼</span>
+      </div>
+      <div class="vbody">
+        <div class="lbl">Seed phrase or hex seed</div>
+        <textarea class="varea" id="vInput" spellcheck="false" autocomplete="off" placeholder="Paste a 33-word Decred phrase, a 15-word Cake / DCRDEX / Bison phrase, a 12 / 24-word BIP39 phrase, or a hex seed…"></textarea>
+        <div class="vrow">
+          <input id="vPass" class="text" style="flex:1;min-width:260px;width:auto;" placeholder="BIP39 passphrase (optional)" spellcheck="false" autocomplete="off" />
+          <button class="btn btn-primary" id="vCheck" style="padding:11px 20px;">Check seed</button>
+        </div>
+        <div class="vresult" id="vResult"></div>
+      </div>
+    </section>
+
+    <!-- security notes -->
+    <div class="notes">
+      <div class="note">
+        <h4>Generate offline</h4>
+        <p>For real funds, save this page and run it on an air-gapped machine. Keys are generated locally with your browser's secure RNG and never transmitted.</p>
+      </div>
+      <div class="note">
+        <h4>Print, don't screenshot</h4>
+        <p>Print the wallet on paper and store it somewhere safe. Avoid cloud photos or screenshots of the private key and seed.</p>
+      </div>
+      <div class="note">
+        <h4>Verify before funding</h4>
+        <p>Send a small test amount first. Re-enter your seed in the <a id="verifyLink">verify tool</a> above, or import it into a Decred wallet, to confirm you control the address.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- print sheet -->
+<div id="printsheet">
+  <div class="ps-head">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="ps-mark"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="dcrgB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2ED6A1"/><stop offset="1" stop-color="#36C5E0"/></linearGradient></defs><rect width="64" height="64" rx="12" fill="url(#dcrgB)"/><path d="M43.21 40.24 51 48h-7.65L30.5 35.2h8a6.4 6.4 0 1 0 0-12.8h-2.6L29.43 16h8.72A12.82 12.82 0 0 1 51 28.8c0 5.2-2.3 9.26-7.79 11.44" fill="#fff"/><path d="M20.79 23.76 13 16h7.66l12.85 12.8h-7.95a6.4 6.4 0 1 0 0 12.8h2.59l6.42 6.4h-8.72A12.82 12.82 0 0 1 13 35.2c0-5.2 2.3-9.26 7.79-11.44" fill="#fff"/></svg></div>
+      <div style="font-size:20px;font-weight:700;letter-spacing:.01em;">DECRED PAPER WALLET</div>
+    </div>
+    <div style="font-size:11px;color:#5a6b66;text-align:right;">Decred mainnet<br/><span id="ps_fmt">—</span><br/><span id="ps_path">m/44'/42'/0'/0/0</span></div>
+  </div>
+  <div class="ps-box pub">
+    <div class="ps-qr" id="ps_qraddr"></div>
+    <div>
+      <div style="font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#0c7a5a;margin-bottom:6px;">▲ Public address — deposit here</div>
+      <div class="mono" id="ps_addr" style="font-size:14px;word-break:break-all;line-height:1.5;">—</div>
+      <div style="font-size:11px;color:#5a6b66;margin-top:8px;">Anyone can send DCR to this address. Safe to share.</div>
+    </div>
+  </div>
+  <div class="ps-fold"><span style="font-size:13px;">✂</span><div class="ln"></div><span style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;">fold &amp; keep private</span><div class="ln"></div></div>
+  <div class="ps-box priv">
+    <div class="ps-qr" id="ps_qrwif" style="border:1px solid #f0ddd7;"></div>
+    <div>
+      <div style="font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#b23a2a;margin-bottom:6px;">▼ Private key (WIF) — keep secret</div>
+      <div class="mono" id="ps_wif" style="font-size:13px;word-break:break-all;line-height:1.5;">—</div>
+      <div style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#b23a2a;margin:14px 0 7px;" id="ps_seedlabel">Recovery seed phrase</div>
+      <div id="ps_words"></div>
+      <div style="font-size:11px;color:#9a5a50;margin-top:10px;">Whoever holds this key or phrase controls the funds. Store it offline, safe from fire and theft.</div>
+    </div>
+  </div>
+  <div style="font-size:10px;color:#8a9a95;margin-top:14px;text-align:center;">Generated offline · secp256k1 · blake256r14 · Verify with a small test deposit before funding.</div>
+</div>
+
+<!-- ====================== engines (vendored, offline) ====================== -->
+<script>/*__ENGINE__*/</script>
+<script>/*__BIP39__*/</script>
+<script>window.PGP_WORDLIST = /*__PGPWORDS__*/;</script>
+<script>/*__QR__*/</script>
+
+<!-- native Decred (PGP word list) seed extensions to window.DCR -->
+<script>
+(function(){
+  'use strict';
+  var DCR = window.DCR;
+  var W = window.PGP_WORDLIST;
+  var IDX = {};
+  for (var i=0;i<W.length;i++) IDX[W[i].toLowerCase()] = i;
+
+  function E(msg){ var e = new Error(msg); e.userMessage = msg; return e; }
+  async function sha256(b){ return new Uint8Array(await crypto.subtle.digest('SHA-256', b)); }
+  async function sha256d(b){ return await sha256(await sha256(b)); }
+
+  async function encodeSeedMnemonic(seed){
+    var cks = (await sha256d(seed))[0];
+    var out = [];
+    for (var i=0;i<seed.length;i++){ var bb = seed[i]*2; if (i%2!==0) bb++; out.push(W[bb]); }
+    var cb = cks*2; if (seed.length%2!==0) cb++; out.push(W[cb]);
+    return out.join(' ');
+  }
+  async function decodeSeedMnemonic(words){
+    var out = [];
+    for (var k=0;k<words.length;k++){
+      var w = (words[k]||'').trim(); if (!w) continue;
+      var i = IDX[w.toLowerCase()];
+      if (i === undefined) throw E('“'+w+'” is not in the Decred word list.');
+      if ((i%2) !== (out.length%2)) throw E('Word #'+(out.length+1)+' (“'+w+'”) is out of position — a word may be missing or swapped.');
+      out.push(i>>1);
+    }
+    if (out.length < 2) throw E('Too few words for a Decred seed.');
+    var data = out.slice(0,-1), cks = out[out.length-1];
+    var calc = (await sha256d(Uint8Array.from(data)))[0];
+    if (calc !== cks) throw E('Checksum failed — double-check the words and their order.');
+    return Uint8Array.from(data);
+  }
+
+  // m/44'/42'/0'/0/index derived directly from raw seed bytes (no PBKDF2)
+  async function walletFromSeedBytes(seed, index){
+    index = index|0;
+    var H = 0x80000000;
+    var node = await DCR.derivePath(seed, [44+H, 42+H, 0+H, 0, index]);
+    var priv = node.key, pub = DCR.pubFromPriv(priv);
+    return {
+      privHex: DCR.bytesToHex(priv),
+      wif: DCR.wifFromPriv(priv),
+      pubHex: DCR.bytesToHex(pub),
+      address: DCR.addressFromPub(pub),
+      path: "m/44'/42'/0'/0/" + index
+    };
+  }
+
+  async function generateNativeWallet(){
+    var seed = DCR.randomBytes(32);
+    var mnemonic = await encodeSeedMnemonic(seed);
+    var w = await walletFromSeedBytes(seed, 0);
+    w.kind = 'native'; w.mnemonic = mnemonic; w.seedHex = DCR.bytesToHex(seed);
+    w.words = mnemonic.split(' '); return w;
+  }
+
+  // ---- Raw hex seed (used directly as the BIP32 seed, like dcrwallet hex import) ----
+  async function generateHexSeed(){
+    var seed = DCR.randomBytes(32);
+    var w = await walletFromSeedBytes(seed, 0);
+    w.kind = 'hex'; w.seedHex = DCR.bytesToHex(seed); w.mnemonic = null; w.words = null;
+    return w;
+  }
+
+  // ---- DCRDEX / Bison Wallet / Cake Wallet 15-word seed (entropy + birthday) ----
+  // Layout (165 bits): 18-byte entropy + 2-byte birthday (days since epoch, BE) +
+  // 5-bit checksum (top 5 bits of sha256(entropy||days)). Words: BIP39 English list,
+  // 11 bits/word, MSB-first. Exactly matches decred.org/dcrdex/client/mnemonic.
+  var BISON_ENT = 18, BISON_SPD = 86400;
+  var WLB = window.BIP39_WORDLIST || [];
+  var WLBIDX = {}; for (var bi=0;bi<WLB.length;bi++) WLBIDX[WLB[bi]] = bi;
+
+  function concatBytes(a, b){ var o = new Uint8Array(a.length+b.length); o.set(a,0); o.set(b,a.length); return o; }
+
+  async function encode15Word(entropy, unixSecs){
+    if (entropy.length !== BISON_ENT) throw E('Bison/Cake seed entropy must be 18 bytes.');
+    var days = Math.floor(unixSecs / BISON_SPD) & 0xffff;
+    var buf = new Uint8Array(21);
+    buf.set(entropy, 0); buf[18] = (days >> 8) & 0xff; buf[19] = days & 0xff;
+    buf[20] = (await sha256(buf.slice(0, 20)))[0] & 0xf8;
+    var bits = '';
+    for (var i=0;i<buf.length;i++) bits += buf[i].toString(2).padStart(8, '0');
+    var words = [];
+    for (var w=0;w<15;w++) words.push(WLB[parseInt(bits.slice(w*11, w*11+11), 2)]);
+    return words.join(' ');
+  }
+  async function decode15Word(words){
+    if (words.length !== 15) throw E('A Cake / DCRDEX / Bison seed is exactly 15 words.');
+    var bits = '';
+    for (var k=0;k<15;k++){
+      var v = WLBIDX[(words[k]||'').toLowerCase()];
+      if (v === undefined) throw E('“'+words[k]+'” is not in the BIP39 word list.');
+      bits += v.toString(2).padStart(11, '0');
+    }
+    bits += '000'; // pad 165 -> 168 bits
+    var buf = new Uint8Array(21);
+    for (var i=0;i<21;i++) buf[i] = parseInt(bits.slice(i*8, i*8+8), 2);
+    var acquired = buf[20] >> 3;
+    var calc = (await sha256(buf.slice(0, 20)))[0] >> 3;
+    if (acquired !== calc) throw E('Checksum failed — double-check the 15 words and their order.');
+    return { entropy: buf.slice(0, 18), unixSecs: ((buf[18] << 8) | buf[19]) * BISON_SPD };
+  }
+  // Bison-compatible derivation: blake256(entropy || uint32_BE(42)) is the BIP32 seed.
+  async function walletFrom15Entropy(entropy){
+    var tweaked = DCR.blake256(concatBytes(entropy, new Uint8Array([0,0,0,42])));
+    return await walletFromSeedBytes(tweaked, 0);
+  }
+  async function generate15Word(){
+    var entropy = DCR.randomBytes(18);
+    var unixSecs = Math.floor(Date.now() / 1000);
+    var mnemonic = await encode15Word(entropy, unixSecs);
+    var w = await walletFrom15Entropy(entropy);
+    w.kind = 'bison15'; w.mnemonic = mnemonic; w.words = mnemonic.split(' ');
+    w.birthday = unixSecs; w.entropyHex = DCR.bytesToHex(entropy);
+    return w;
+  }
+
+  var BIP39_COUNTS = {12:1,18:1,21:1,24:1};
+
+  async function restoreFromInput(text, passphrase){
+    passphrase = passphrase || '';
+    var trimmed = (text||'').trim().replace(/\s+/g,' ');
+    if (!trimmed) throw E('Enter a seed phrase or hex seed.');
+    var tokens = trimmed.split(' ');
+
+    // single token -> hex seed (matches dcrwallet DecodeUserInput)
+    if (tokens.length === 1){
+      var h = tokens[0].toLowerCase().replace(/^0x/, '');
+      if (!/^[0-9a-f]+$/.test(h) || h.length % 2) throw E('That looks like a single word — a seed phrase needs several words, or paste a valid hex seed.');
+      if (h.length/2 < 16 || h.length/2 > 64) throw E('A hex seed must be 16–64 bytes (32–128 hex chars).');
+      var seedH = DCR.hexToBytes(h);
+      var wh = await walletFromSeedBytes(seedH, 0);
+      wh.kind = 'hex'; wh.seedHex = h; wh.mnemonic = null; wh.words = null; wh.label = 'Decred seed (hex · ' + (h.length/2) + ' bytes)';
+      return wh;
+    }
+
+    // Exactly 15 words -> Cake Wallet / DCRDEX / Bison Wallet seed (entropy + birthday).
+    // (A 15-word phrase is not a valid Decred native seed, and Bison/standard-BIP39 15
+    //  share the same checksum, so the Bison interpretation is the meaningful one here.)
+    if (tokens.length === 15){
+      var dec = await decode15Word(tokens); // throws precise word/checksum errors
+      var canon15 = await encode15Word(dec.entropy, dec.unixSecs);
+      var w15 = await walletFrom15Entropy(dec.entropy);
+      w15.kind = 'bison15'; w15.mnemonic = canon15; w15.words = canon15.split(' ');
+      w15.birthday = dec.unixSecs;
+      w15.label = 'Cake · DCRDEX · Bison · 15 words';
+      return w15;
+    }
+
+    var allPgp = tokens.every(function(t){ return IDX[t.toLowerCase()] !== undefined; });
+    var nativeLikely = !BIP39_COUNTS[tokens.length]; // counts that are NOT a BIP39 length
+
+    if (allPgp){
+      try {
+        var seed = await decodeSeedMnemonic(tokens);
+        if (seed.length >= 16 && seed.length <= 64){
+          var wn = await walletFromSeedBytes(seed, 0);
+          var canonN = await encodeSeedMnemonic(seed); // canonical PGP casing
+          wn.kind = 'native'; wn.mnemonic = canonN; wn.words = canonN.split(' ');
+          wn.label = 'Decred native · ' + tokens.length + ' words';
+          return wn;
+        }
+        if (nativeLikely) throw E('Decoded seed length is invalid for a Decred native seed.');
+      } catch(err){
+        // If it can't also be a BIP39 phrase, surface the native error.
+        if (nativeLikely) throw err;
+      }
+    }
+
+    // BIP39 path
+    var valid = await DCR.validateMnemonic(trimmed);
+    if (!valid) throw E('Not a recognized Decred (33-word) or BIP39 (12/15/18/21/24-word) seed phrase. Check for typos or missing words.');
+    var lower = trimmed.toLowerCase();
+    var wb = await DCR.walletFromMnemonic(lower, passphrase, 0);
+    wb.kind = 'bip39'; wb.mnemonic = lower; wb.words = lower.split(' ');
+    wb.label = 'BIP39 · ' + tokens.length + ' words' + (passphrase ? ' + passphrase' : '');
+    return wb;
+  }
+
+  DCR.encodeSeedMnemonic = encodeSeedMnemonic;
+  DCR.decodeSeedMnemonic = decodeSeedMnemonic;
+  DCR.walletFromSeedBytes = walletFromSeedBytes;
+  DCR.generateNativeWallet = generateNativeWallet;
+  DCR.generateHexSeed = generateHexSeed;
+  DCR.encode15Word = encode15Word;
+  DCR.decode15Word = decode15Word;
+  DCR.walletFrom15Entropy = walletFrom15Entropy;
+  DCR.generate15Word = generate15Word;
+  DCR.restoreFromInput = restoreFromInput;
+})();
+</script>
+
+<!-- ====================== app controller (vanilla) ====================== -->
+<script>
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var app = $('app');
+
+  var QR_DARK = '#06140f', QR_DARK_R = '#3a1411';
+  function qrSvg(text, danger){
+    try { return window.QR.encodeToSvg(text, { ecl:'MEDIUM', border:2, dark: danger ? QR_DARK_R : QR_DARK }); }
+    catch(e){ return ''; }
+  }
+
+  function copyText(t){
+    if (!t) return;
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).catch(function(){ fallbackCopy(t); });
+    } else { fallbackCopy(t); }
+  }
+  function fallbackCopy(t){
+    var ta = document.createElement('textarea');
+    ta.value = t; ta.style.position='fixed'; ta.style.top='-1000px'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  var state = {
+    format: 'native33',     // native33 | bison15 | bip39-12 | bip39-24 | hex
+    passphrase: '',
+    wallet: null,
+    generating: false,
+    copyTimer: null
+  };
+
+  function strengthFor(fmt){ return fmt === 'bip39-12' ? 128 : 256; }
+  function isBip39(fmt){ return fmt === 'bip39-12' || fmt === 'bip39-24'; }
+
+  function fmtBday(secs){ try { return new Date(secs*1000).toISOString().slice(0,10); } catch(e){ return '—'; } }
+  function seedTitleFor(w){ return w && w.kind === 'hex' ? 'Recovery seed (hex)' : 'Recovery seed phrase'; }
+  function seedNoteFor(w){
+    if (!w) return '';
+    if (w.kind === 'native') return 'Decred PGP word list · 33 words · imports into Decrediton / dcrwallet';
+    if (w.kind === 'bison15') return '15-word seed · Cake Wallet · DCRDEX · Bison Wallet';
+    if (w.kind === 'hex') return 'raw 32-byte seed · dcrwallet hex import · keep it secret';
+    return 'BIP39 · ' + (w.words ? w.words.length + ' words · ' : '') + 'write it down, keep it secret';
+  }
+  function passNoteFor(fmt){
+    if (fmt === 'native33') return 'Native Decred seeds don’t use a passphrase — the words are the seed.';
+    if (fmt === 'bison15') return 'Cake / DCRDEX / Bison 15-word seeds don’t use a passphrase.';
+    if (fmt === 'hex') return 'Raw hex seeds are used directly — no passphrase.';
+    return '';
+  }
+  function passWordHint(fmt){
+    if (fmt === 'bip39-12') return '(optional 13th word)';
+    if (fmt === 'bip39-24') return '(optional 25th word)';
+    return '(optional)';
+  }
+  function applyPassphraseUI(fmt){
+    var bip = isBip39(fmt);
+    $('pass').disabled = !bip;
+    var note = passNoteFor(fmt);
+    $('passNote').textContent = note;
+    $('passNote').style.display = note ? 'block' : 'none';
+    $('passWordHint').textContent = passWordHint(fmt);
+  }
+  function metaFor(w){
+    var f = w.kind === 'native' ? 'Decred native 33-word'
+          : w.kind === 'bison15' ? 'Cake / DCRDEX / Bison 15-word'
+          : w.kind === 'hex' ? 'raw hex seed'
+          : 'BIP39 ' + (w.words ? w.words.length : '') + '-word';
+    return 'Decred mainnet · ' + f + ' · secp256k1 · ' + w.path;
+  }
+  function printFmtLabel(w){
+    if (w.kind === 'native') return 'Decred native · 33-word seed';
+    if (w.kind === 'bison15') return 'Cake / DCRDEX / Bison · 15-word · birthday ' + fmtBday(w.birthday);
+    if (w.kind === 'hex') return 'Raw hex seed (32 bytes)';
+    return 'BIP39 · ' + w.words.length + '-word seed';
+  }
+  function printSeedLabel(w){
+    if (w.kind === 'native') return 'Recovery seed phrase (Decred PGP)';
+    if (w.kind === 'bison15') return 'Recovery seed phrase (15-word · Cake/DCRDEX/Bison)';
+    if (w.kind === 'hex') return 'Recovery seed (hex)';
+    return 'Recovery seed phrase (BIP39)';
+  }
+
+  function renderSeedGrid(container, words, accentClass){
+    container.innerHTML = '';
+    if (!words) return;
+    for (var i=0;i<words.length;i++){
+      var chip = document.createElement('div');
+      chip.className = 'chip';
+      var n = document.createElement('span'); n.className = 'n'; n.textContent = (i+1);
+      var w = document.createElement('span'); w.className = 'w'; w.textContent = words[i];
+      chip.appendChild(n); chip.appendChild(w);
+      container.appendChild(chip);
+    }
+  }
+
+  function renderPrintWords(container, words){
+    container.innerHTML = '';
+    if (!words) return;
+    for (var i=0;i<words.length;i++){
+      var s = document.createElement('span'); s.className = 'ps-chip';
+      var n = document.createElement('span'); n.className = 'n'; n.textContent = (i+1);
+      s.appendChild(n); s.appendChild(document.createTextNode(' ' + words[i]));
+      container.appendChild(s);
+    }
+  }
+
+  function renderWallet(){
+    var w = state.wallet; if (!w) return;
+    $('addr').textContent = w.address;
+    $('wif').textContent = w.wif;
+    $('path').textContent = w.path;
+    $('seedTitle').textContent = seedTitleFor(w);
+    $('seedNote').textContent = seedNoteFor(w);
+    $('meta').textContent = metaFor(w);
+    $('qrAddr').innerHTML = qrSvg(w.address, false);
+    $('qrWif').innerHTML = qrSvg(w.wif, true);
+
+    var isHex = (w.kind === 'hex');
+    $('seedGrid').style.display = isHex ? 'none' : '';
+    $('seedHex').style.display = isHex ? '' : 'none';
+    if (isHex) $('seedHex').textContent = w.seedHex;
+    else renderSeedGrid($('seedGrid'), w.words, false);
+
+    if (w.kind === 'bison15'){ $('bdayLine').style.display = 'block'; $('bdayVal').textContent = fmtBday(w.birthday); }
+    else $('bdayLine').style.display = 'none';
+
+    // print sheet
+    $('ps_addr').textContent = w.address;
+    $('ps_wif').textContent = w.wif;
+    $('ps_path').textContent = w.path;
+    $('ps_fmt').textContent = printFmtLabel(w);
+    $('ps_seedlabel').textContent = printSeedLabel(w);
+    $('ps_qraddr').innerHTML = qrSvg(w.address, false);
+    $('ps_qrwif').innerHTML = qrSvg(w.wif, true);
+    if (isHex){
+      $('ps_words').innerHTML = '';
+      var s = document.createElement('span'); s.className = 'mono';
+      s.style.fontSize = '12px'; s.style.wordBreak = 'break-all'; s.textContent = w.seedHex;
+      $('ps_words').appendChild(s);
+    } else renderPrintWords($('ps_words'), w.words);
+  }
+
+  async function generate(){
+    if (state.generating) return;
+    if (!window.DCR || !window.DCR.hasWordlist || !window.DCR.hasWordlist() || !window.QR){
+      // engines not ready yet; retry shortly
+      return setTimeout(generate, 60);
+    }
+    state.generating = true;
+    app.classList.add('gen');
+    app.classList.remove('revealed');
+    $('genLabel').textContent = 'Generating…';
+    await new Promise(function(r){ setTimeout(r, 180); }); // let spinner paint
+    try {
+      var w;
+      if (state.format === 'native33') w = await window.DCR.generateNativeWallet();
+      else if (state.format === 'bison15') w = await window.DCR.generate15Word();
+      else if (state.format === 'hex') w = await window.DCR.generateHexSeed();
+      else {
+        w = await window.DCR.generateWallet(strengthFor(state.format), state.passphrase);
+        w.kind = 'bip39'; w.words = w.mnemonic.split(' ');
+      }
+      state.wallet = w;
+      renderWallet();
+    } catch(e){
+      console.error('generate failed', e);
+    } finally {
+      state.generating = false;
+      app.classList.remove('gen');
+      $('genLabel').textContent = 'Generate';
+    }
+  }
+
+  function setFormat(fmt){
+    state.format = fmt;
+    var btns = $('fmtGroup').querySelectorAll('button');
+    for (var i=0;i<btns.length;i++) btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-fmt') === fmt ? 'true' : 'false');
+    applyPassphraseUI(fmt);
+    generate();
+  }
+
+  function highlightFormat(fmt){
+    var btns = $('fmtGroup').querySelectorAll('button');
+    for (var i=0;i<btns.length;i++) btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-fmt') === fmt ? 'true' : 'false');
+  }
+  function kindToFormat(w){
+    if (w.kind === 'native') return 'native33';
+    if (w.kind === 'bison15') return 'bison15';
+    if (w.kind === 'hex') return 'hex';
+    if (w.kind === 'bip39') return w.words && w.words.length === 12 ? 'bip39-12' : (w.words && w.words.length === 24 ? 'bip39-24' : null);
+    return null;
+  }
+  // Promote a verified/imported seed to the main wallet card so it can be printed.
+  function importWallet(res){
+    state.wallet = res;
+    var fmt = kindToFormat(res);
+    if (fmt){
+      state.format = fmt;
+      highlightFormat(fmt);
+      applyPassphraseUI(fmt);
+    }
+    app.classList.remove('revealed');
+    renderWallet();
+    document.querySelector('.card').scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  function flashCopied(btn){
+    btn.classList.add('copied');
+    var prev = btn.getAttribute('data-label') || btn.textContent;
+    if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', prev);
+    btn.textContent = '✓ Copied';
+    clearTimeout(state.copyTimer);
+    state.copyTimer = setTimeout(function(){
+      btn.classList.remove('copied');
+      btn.textContent = btn.getAttribute('data-label');
+    }, 1500);
+  }
+
+  function onCopy(e){
+    var btn = e.currentTarget, field = btn.getAttribute('data-copy'), w = state.wallet;
+    if (!w) return;
+    var text = field==='addr' ? w.address : field==='wif' ? w.wif : (w.mnemonic || w.seedHex);
+    copyText(text);
+    flashCopied(btn);
+  }
+
+  // ----- verify panel -----
+  function renderVerify(res, err){
+    var box = $('vResult');
+    if (err){
+      box.innerHTML = '';
+      var d = document.createElement('div'); d.className = 'verr'; d.textContent = '✕ ' + err;
+      box.appendChild(d);
+      return;
+    }
+    box.innerHTML = '';
+    var ok = document.createElement('div'); ok.className = 'vok';
+    var left = document.createElement('div'); left.style.minWidth = '0';
+    var kind = document.createElement('div'); kind.className = 'vkind'; kind.textContent = res.label;
+    left.appendChild(kind);
+    var impBar = document.createElement('div'); impBar.style.margin = '2px 0 14px';
+    var imp = document.createElement('button'); imp.className = 'btn btn-primary';
+    imp.style.cssText = 'padding:10px 18px;font-size:13.5px;';
+    imp.textContent = '↑ Use as paper wallet';
+    imp.addEventListener('click', function(){ importWallet(res); });
+    impBar.appendChild(imp); left.appendChild(impBar);
+    left.appendChild(field('Address', res.address, false));
+    left.appendChild(field('Derivation path', res.path, false));
+    if (res.birthday) left.appendChild(field('Wallet birthday', fmtBday(res.birthday) + ' (encoded in seed)', false));
+    // WIF behind reveal
+    var wf = document.createElement('div'); wf.className = 'vfield';
+    var wk = document.createElement('div'); wk.className = 'k'; wk.textContent = 'Private key (WIF)';
+    var wv = document.createElement('div'); wv.className = 'v coral vsecret'; wv.textContent = res.wif;
+    wf.appendChild(wk); wf.appendChild(wv);
+    var bar = document.createElement('div'); bar.className = 'btnbar'; bar.style.marginTop = '12px';
+    var rev = document.createElement('button'); rev.className = 'copybtn smallbtn'; rev.textContent = '👁 Reveal key';
+    rev.addEventListener('click', function(){ app.classList.toggle('vrevealed'); rev.textContent = app.classList.contains('vrevealed') ? '🙈 Hide key' : '👁 Reveal key'; });
+    var cp = document.createElement('button'); cp.className = 'copybtn danger smallbtn'; cp.textContent = '⧉ Copy address';
+    cp.addEventListener('click', function(){ copyText(res.address); cp.textContent = '✓ Copied'; setTimeout(function(){ cp.textContent = '⧉ Copy address'; }, 1500); });
+    bar.appendChild(rev); bar.appendChild(cp);
+    wf.appendChild(bar);
+    left.appendChild(wf);
+    ok.appendChild(left);
+    var qrw = document.createElement('div'); qrw.className = 'qrwrap';
+    var qr = document.createElement('div'); qr.className = 'qr green'; qr.innerHTML = qrSvg(res.address, false);
+    var cap = document.createElement('div'); cap.className = 'qrcap'; cap.textContent = 'address';
+    qrw.appendChild(qr); qrw.appendChild(cap);
+    ok.appendChild(qrw);
+    box.appendChild(ok);
+  }
+  function field(k, v, coral){
+    var f = document.createElement('div'); f.className = 'vfield';
+    var kk = document.createElement('div'); kk.className = 'k'; kk.textContent = k;
+    var vv = document.createElement('div'); vv.className = 'v' + (coral ? ' coral' : ''); vv.textContent = v;
+    f.appendChild(kk); f.appendChild(vv); return f;
+  }
+  async function doVerify(){
+    app.classList.remove('vrevealed');
+    var btn = $('vCheck'); btn.disabled = true; var prev = btn.textContent; btn.textContent = 'Checking…';
+    try {
+      var res = await window.DCR.restoreFromInput($('vInput').value, $('vPass').value);
+      renderVerify(res, null);
+    } catch(e){
+      renderVerify(null, e.userMessage || e.message || 'Could not read that seed.');
+    } finally {
+      btn.disabled = false; btn.textContent = prev;
+    }
+  }
+
+  function init(){
+    // controls
+    $('fmtGroup').addEventListener('click', function(e){
+      var b = e.target.closest('button'); if (!b) return; setFormat(b.getAttribute('data-fmt'));
+    });
+    $('pass').addEventListener('input', function(e){ state.passphrase = e.target.value; });
+    $('genBtn').addEventListener('click', generate);
+    $('newBtn').addEventListener('click', generate);
+    $('printBtn').addEventListener('click', function(){ window.print(); });
+    $('revealBtn').addEventListener('click', function(){
+      app.classList.toggle('revealed');
+      $('revealBtn').textContent = app.classList.contains('revealed') ? '🙈 Hide secrets' : '👁 Reveal secrets';
+    });
+    var copyBtns = document.querySelectorAll('[data-copy]');
+    for (var i=0;i<copyBtns.length;i++) copyBtns[i].addEventListener('click', onCopy);
+
+    // verify panel
+    $('vToggle').addEventListener('click', function(){ app.classList.toggle('vopen'); });
+    $('vCheck').addEventListener('click', doVerify);
+    $('verifyLink').addEventListener('click', function(){
+      app.classList.add('vopen');
+      $('vInput').focus();
+      document.querySelector('.verify').scrollIntoView({ behavior:'smooth', block:'center' });
+    });
+
+    setFormat('native33'); // also triggers first generate()
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>

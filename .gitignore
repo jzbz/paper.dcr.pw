@@ -1,0 +1,11 @@
+# local tooling / agent config
+.claude/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# node (future-proofing; none committed today)
+node_modules/
