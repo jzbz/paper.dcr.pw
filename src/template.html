@@ -2,8 +2,10 @@
 <html lang="en" data-look="aurora">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
+<meta name="description" content="Offline Decred (DCR) paper wallet generator. Runs entirely in your browser — no network, no dependencies. Native 33-word, Cake/DCRDEX/Bison 15-word, BIP39 and hex seeds.">
 <title>Decred Paper Wallet — offline cold-storage generator</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,__FAVICON_B64__">
 <style>
@@ -50,7 +52,13 @@ html,body{margin:0;padding:0;background:#05100f;}
 .title{font-size:21px;font-weight:600;letter-spacing:-.01em;line-height:1;white-space:nowrap;}
 .subtitle{font-size:12.5px;color:rgba(220,242,235,.55);margin-top:5px;letter-spacing:.02em;}
 .badge{display:flex;align-items:center;gap:9px;padding:9px 15px;border-radius:999px;background:rgba(46,216,167,.08);border:1px solid rgba(46,216,167,.22);font-size:12.5px;color:var(--accent);font-weight:500;}
+.badge.warn{background:rgba(255,158,138,.08);border-color:rgba(255,158,138,.28);color:#ffb5a6;}
+.badge.warn .dot{background:var(--danger);box-shadow:0 0 10px rgba(255,158,138,.6);}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent-glow);flex:none;}
+.fatal{display:none;margin:0 0 22px;padding:14px 18px;border-radius:14px;background:rgba(255,158,138,.12);border:1px solid rgba(255,158,138,.4);color:#ffb5a6;font-size:13.5px;line-height:1.55;}
+#app.dead .fatal{display:block;}
+.btn:disabled,.copybtn:disabled{opacity:.45;cursor:not-allowed;filter:none;}
+.noscript-msg{margin:24px;padding:16px 20px;border-radius:14px;background:rgba(255,158,138,.12);border:1px solid rgba(255,158,138,.4);color:#ffb5a6;font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;}
 
 /* panels */
 .panel{position:relative;background:var(--panel-bg);border:1px solid var(--panel-border);backdrop-filter:blur(var(--blur)) saturate(1.15);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.15);}
@@ -174,6 +182,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
 </style>
 </head>
 <body>
+<noscript><div class="noscript-msg">This tool requires JavaScript. All cryptography runs locally in your browser — nothing is ever transmitted. Enable JavaScript (or open the file in a regular browser) to continue.</div></noscript>
 <div id="app">
   <div id="aurora" aria-hidden="true">
     <div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div>
@@ -190,8 +199,11 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
           <div class="subtitle">Cold-storage key generator · runs 100% offline</div>
         </div>
       </div>
-      <div class="badge"><span class="dot"></span>Runs offline · keys never leave this device</div>
+      <div class="badge" id="badge"><span class="dot"></span><span id="badgeText">Runs offline · keys never leave this device</span></div>
     </header>
+
+    <!-- fatal error banner (self-test / engine failure) -->
+    <div class="fatal" id="fatalBar" role="alert"></div>
 
     <!-- controls -->
     <section class="panel controls">
@@ -285,16 +297,16 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
 
     <!-- verify / restore -->
     <section class="panel verify">
-      <div class="vhead" id="vToggle">
+      <div class="vhead" id="vToggle" role="button" tabindex="0" aria-expanded="false" aria-controls="vBody">
         <span class="vh-title">Verify or import a seed</span>
         <span class="vh-sub">re-derive an address offline, or use your own seed as the paper wallet</span>
         <span class="chev">▼</span>
       </div>
-      <div class="vbody">
+      <div class="vbody" id="vBody">
         <div class="lbl">Seed phrase or hex seed</div>
-        <textarea class="varea" id="vInput" spellcheck="false" autocomplete="off" placeholder="Paste a 33-word Decred phrase, a 15-word Cake / DCRDEX / Bison phrase, a 12 / 24-word BIP39 phrase, or a hex seed…"></textarea>
+        <textarea class="varea" id="vInput" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Paste a 33-word Decred phrase, a 15-word Cake / DCRDEX / Bison phrase, a 12 / 24-word BIP39 phrase, or a hex seed…"></textarea>
         <div class="vrow">
-          <input id="vPass" class="text" style="flex:1;min-width:260px;width:auto;" placeholder="BIP39 passphrase (optional)" spellcheck="false" autocomplete="off" />
+          <input id="vPass" class="text" style="flex:1;min-width:260px;width:auto;" placeholder="BIP39 passphrase (optional)" spellcheck="false" autocomplete="off" autocapitalize="off" />
           <button class="btn btn-primary" id="vCheck" style="padding:11px 20px;">Check seed</button>
         </div>
         <div class="vresult" id="vResult"></div>
@@ -344,6 +356,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       <div class="mono" id="ps_wif" style="font-size:13px;word-break:break-all;line-height:1.5;">—</div>
       <div style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#b23a2a;margin:14px 0 7px;" id="ps_seedlabel">Recovery seed phrase</div>
       <div id="ps_words"></div>
+      <div id="ps_passline" style="display:none;font-size:12px;font-weight:700;color:#b23a2a;margin-top:10px;border:1.5px dashed #b23a2a;border-radius:6px;padding:7px 10px;">⚠ A BIP39 passphrase was set. The printed seed alone will NOT restore this wallet — the passphrase (not printed here) is also required. Store it separately.</div>
       <div style="font-size:11px;color:#9a5a50;margin-top:10px;">Whoever holds this key or phrase controls the funds. Store it offline, safe from fire and theft.</div>
     </div>
   </div>
@@ -534,6 +547,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     var lower = trimmed.toLowerCase();
     var wb = await DCR.walletFromMnemonic(lower, passphrase, 0);
     wb.kind = 'bip39'; wb.mnemonic = lower; wb.words = lower.split(' ');
+    wb.passphraseUsed = !!passphrase;
     wb.label = 'BIP39 · ' + tokens.length + ' words' + (passphrase ? ' + passphrase' : '');
     return wb;
   }
@@ -582,21 +596,22 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     format: 'native33',     // native33 | bison15 | bip39-12 | bip39-24 | hex
     passphrase: '',
     wallet: null,
-    generating: false,
-    copyTimer: null
+    generating: false
   };
 
   function strengthFor(fmt){ return fmt === 'bip39-12' ? 128 : 256; }
   function isBip39(fmt){ return fmt === 'bip39-12' || fmt === 'bip39-24'; }
 
   function fmtBday(secs){ try { return new Date(secs*1000).toISOString().slice(0,10); } catch(e){ return '—'; } }
+  function hexBytes(w){ return w.seedHex ? (w.seedHex.length / 2) : 0; }
   function seedTitleFor(w){ return w && w.kind === 'hex' ? 'Recovery seed (hex)' : 'Recovery seed phrase'; }
   function seedNoteFor(w){
     if (!w) return '';
     if (w.kind === 'native') return 'Decred PGP word list · 33 words · imports into Decrediton / dcrwallet';
     if (w.kind === 'bison15') return '15-word seed · Cake Wallet · DCRDEX · Bison Wallet';
-    if (w.kind === 'hex') return 'raw 32-byte seed · dcrwallet hex import · keep it secret';
-    return 'BIP39 · ' + (w.words ? w.words.length + ' words · ' : '') + 'write it down, keep it secret';
+    if (w.kind === 'hex') return 'raw ' + hexBytes(w) + '-byte seed · dcrwallet hex import · keep it secret';
+    return 'BIP39 · ' + (w.words ? w.words.length + ' words · ' : '')
+      + (w.passphraseUsed ? 'passphrase set — required to restore' : 'write it down, keep it secret');
   }
   function passNoteFor(fmt){
     if (fmt === 'native33') return 'Native Decred seeds don’t use a passphrase — the words are the seed.';
@@ -621,14 +636,14 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     var f = w.kind === 'native' ? 'Decred native 33-word'
           : w.kind === 'bison15' ? 'Cake / DCRDEX / Bison 15-word'
           : w.kind === 'hex' ? 'raw hex seed'
-          : 'BIP39 ' + (w.words ? w.words.length : '') + '-word';
+          : 'BIP39 ' + (w.words ? w.words.length : '') + '-word' + (w.passphraseUsed ? ' + passphrase' : '');
     return 'Decred mainnet · ' + f + ' · secp256k1 · ' + w.path;
   }
   function printFmtLabel(w){
     if (w.kind === 'native') return 'Decred native · 33-word seed';
     if (w.kind === 'bison15') return 'Cake / DCRDEX / Bison · 15-word · birthday ' + fmtBday(w.birthday);
-    if (w.kind === 'hex') return 'Raw hex seed (32 bytes)';
-    return 'BIP39 · ' + w.words.length + '-word seed';
+    if (w.kind === 'hex') return 'Raw hex seed (' + hexBytes(w) + ' bytes)';
+    return 'BIP39 · ' + w.words.length + '-word seed' + (w.passphraseUsed ? ' + passphrase' : '');
   }
   function printSeedLabel(w){
     if (w.kind === 'native') return 'Recovery seed phrase (Decred PGP)';
@@ -637,7 +652,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     return 'Recovery seed phrase (BIP39)';
   }
 
-  function renderSeedGrid(container, words, accentClass){
+  function renderSeedGrid(container, words){
     container.innerHTML = '';
     if (!words) return;
     for (var i=0;i<words.length;i++){
@@ -676,7 +691,12 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     $('seedGrid').style.display = isHex ? 'none' : '';
     $('seedHex').style.display = isHex ? '' : 'none';
     if (isHex) $('seedHex').textContent = w.seedHex;
-    else renderSeedGrid($('seedGrid'), w.words, false);
+    else renderSeedGrid($('seedGrid'), w.words);
+
+    var seedBtn = $('copySeed'), seedBtnLabel = isHex ? '⧉ Copy hex seed' : '⧉ Copy seed phrase';
+    seedBtn.textContent = seedBtnLabel;
+    seedBtn.setAttribute('data-label', seedBtnLabel);
+    seedBtn.classList.remove('copied');
 
     if (w.kind === 'bison15'){ $('bdayLine').style.display = 'block'; $('bdayVal').textContent = fmtBday(w.birthday); }
     else $('bdayLine').style.display = 'none';
@@ -689,6 +709,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     $('ps_seedlabel').textContent = printSeedLabel(w);
     $('ps_qraddr').innerHTML = qrSvg(w.address, false);
     $('ps_qrwif').innerHTML = qrSvg(w.wif, true);
+    $('ps_passline').style.display = w.passphraseUsed ? 'block' : 'none';
     if (isHex){
       $('ps_words').innerHTML = '';
       var s = document.createElement('span'); s.className = 'mono';
@@ -705,7 +726,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     }
     state.generating = true;
     app.classList.add('gen');
-    app.classList.remove('revealed');
+    setRevealed(false);
     $('genLabel').textContent = 'Generating…';
     await new Promise(function(r){ setTimeout(r, 180); }); // let spinner paint
     try {
@@ -716,6 +737,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       else {
         w = await window.DCR.generateWallet(strengthFor(state.format), state.passphrase);
         w.kind = 'bip39'; w.words = w.mnemonic.split(' ');
+        w.passphraseUsed = !!state.passphrase;
       }
       state.wallet = w;
       renderWallet();
@@ -756,18 +778,23 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       highlightFormat(fmt);
       applyPassphraseUI(fmt);
     }
-    app.classList.remove('revealed');
+    setRevealed(false);
     renderWallet();
     document.querySelector('.card').scrollIntoView({ behavior:'smooth', block:'start' });
   }
 
+  // Keep the blur state and the reveal button's label in sync everywhere.
+  function setRevealed(on){
+    app.classList.toggle('revealed', !!on);
+    $('revealBtn').textContent = on ? '🙈 Hide secrets' : '👁 Reveal secrets';
+  }
+
   function flashCopied(btn){
     btn.classList.add('copied');
-    var prev = btn.getAttribute('data-label') || btn.textContent;
-    if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', prev);
+    if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', btn.textContent);
     btn.textContent = '✓ Copied';
-    clearTimeout(state.copyTimer);
-    state.copyTimer = setTimeout(function(){
+    clearTimeout(btn._copyTimer); // per-button timer: two quick copies can't strand a button on "Copied"
+    btn._copyTimer = setTimeout(function(){
       btn.classList.remove('copied');
       btn.textContent = btn.getAttribute('data-label');
     }, 1500);
@@ -844,6 +871,77 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     }
   }
 
+  // ----- startup: engine readiness, self-test, offline badge -----
+  var selfTestOk = false;
+
+  function enginesLoaded(){
+    var D = window.DCR;
+    return !!(D && D.hasWordlist && D.hasWordlist() && D.generateNativeWallet && D.generate15Word
+      && window.QR && window.PGP_WORDLIST && window.crypto && window.crypto.subtle);
+  }
+  function waitEngines(timeoutMs){
+    return new Promise(function(resolve, reject){
+      var t0 = Date.now();
+      (function poll(){
+        if (enginesLoaded()) return resolve();
+        if (window.crypto && !window.crypto.subtle)
+          return reject(new Error('Web Crypto is unavailable. Open this file directly (file://) or serve it over https/localhost — plain http disables the crypto APIs this tool needs.'));
+        if (Date.now() - t0 > timeoutMs)
+          return reject(new Error('The embedded crypto engines failed to load. The file may be truncated or corrupted — re-download index.html and try again.'));
+        setTimeout(poll, 50);
+      })();
+    });
+  }
+
+  // Known-answer self-test: the same canonical vectors the test suite uses.
+  // A corrupted save or broken browser fails loudly instead of producing bad keys.
+  async function selfTest(){
+    var D = window.DCR;
+    // 1. Decred native 33-word (dcrd hdkeychain-derived reference vector)
+    var seed = D.hexToBytes('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f');
+    var mn = await D.encodeSeedMnemonic(seed);
+    if (mn !== 'aardvark adviser accrue aggregate adrift almighty afflict amusement aimless applicant allow armistice ammo asteroid apple atmosphere assume Babylon atlas barbecue baboon bifocals backward bookseller beaming bottomless beehive bravado befriend breakaway berserk businessman cement')
+      throw new Error('Self-test failed: native seed encoding mismatch.');
+    var w = await D.walletFromSeedBytes(seed, 0);
+    if (w.address !== 'DsUobw8mjYbXT9BrrwkNt5NaUveJyqiBDtc' || w.wif !== 'PmQemEJb6WZy33Lk2SccamHvXPovET3LxgFX7Q7pRiE6rg1cKo6M8')
+      throw new Error('Self-test failed: key derivation mismatch.');
+    // 2. Cake/DCRDEX/Bison 15-word (decred/libwallet dcr_test.go vector)
+    var dec = await D.decode15Word('peace option follow minute useful proud orphan zero truck response satisfy shell need chef silly'.split(' '));
+    if (D.bytesToHex(dec.entropy) !== 'a1d3756ac6aeff59a737fde936f6fd62b93c' || dec.unixSecs !== 1740614400)
+      throw new Error('Self-test failed: 15-word decoding mismatch.');
+    var w15 = await D.walletFrom15Entropy(dec.entropy);
+    if (w15.address !== 'DsXUwBFUZsGw6r1JXcAs2EFh6Ug51VDeWez')
+      throw new Error('Self-test failed: 15-word derivation mismatch.');
+    // 3. BIP39 + passphrase (Trezor vector mnemonic)
+    var tz = await D.walletFromMnemonic('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about', 'TREZOR', 0);
+    if (tz.address !== 'Dsn1KktBp4eWd7JSPt1HYkLdPbgtEvqZLsj')
+      throw new Error('Self-test failed: BIP39 derivation mismatch.');
+    // 4. QR generator
+    if ((window.QR.encodeToSvg('selftest', { ecl:'MEDIUM', border:2, dark:'#000' }) || '').indexOf('<svg') < 0)
+      throw new Error('Self-test failed: QR generator broken.');
+  }
+
+  function fatal(msg){
+    app.classList.add('dead');
+    $('fatalBar').textContent = '✕ ' + msg + ' No keys have been generated.';
+    $('genBtn').disabled = true;
+    $('vCheck').disabled = true;
+    $('printBtn').disabled = true;
+    updateBadge();
+  }
+
+  function updateBadge(){
+    var b = $('badge'), t = $('badgeText');
+    if (app.classList.contains('dead')){
+      b.classList.add('warn'); t.textContent = 'Self-test failed — do not use';
+    } else if (navigator.onLine){
+      b.classList.add('warn'); t.textContent = 'Browser is online — for real funds, save this file and run it air-gapped';
+    } else {
+      b.classList.remove('warn');
+      t.textContent = 'Offline · keys never leave this device' + (selfTestOk ? ' · self-test ✓' : '');
+    }
+  }
+
   function init(){
     // controls
     $('fmtGroup').addEventListener('click', function(e){
@@ -853,23 +951,39 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     $('genBtn').addEventListener('click', generate);
     $('newBtn').addEventListener('click', generate);
     $('printBtn').addEventListener('click', function(){ window.print(); });
-    $('revealBtn').addEventListener('click', function(){
-      app.classList.toggle('revealed');
-      $('revealBtn').textContent = app.classList.contains('revealed') ? '🙈 Hide secrets' : '👁 Reveal secrets';
-    });
+    $('revealBtn').addEventListener('click', function(){ setRevealed(!app.classList.contains('revealed')); });
     var copyBtns = document.querySelectorAll('[data-copy]');
     for (var i=0;i<copyBtns.length;i++) copyBtns[i].addEventListener('click', onCopy);
 
     // verify panel
-    $('vToggle').addEventListener('click', function(){ app.classList.toggle('vopen'); });
+    function toggleVerify(){
+      app.classList.toggle('vopen');
+      $('vToggle').setAttribute('aria-expanded', app.classList.contains('vopen') ? 'true' : 'false');
+    }
+    $('vToggle').addEventListener('click', toggleVerify);
+    $('vToggle').addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleVerify(); }
+    });
     $('vCheck').addEventListener('click', doVerify);
     $('verifyLink').addEventListener('click', function(){
-      app.classList.add('vopen');
+      if (!app.classList.contains('vopen')) toggleVerify();
       $('vInput').focus();
       document.querySelector('.verify').scrollIntoView({ behavior:'smooth', block:'center' });
     });
 
-    setFormat('native33'); // also triggers first generate()
+    // offline/online badge
+    window.addEventListener('online', updateBadge);
+    window.addEventListener('offline', updateBadge);
+    updateBadge();
+
+    // boot: wait for engines, prove them against known vectors, then generate
+    waitEngines(10000).then(selfTest).then(function(){
+      selfTestOk = true;
+      updateBadge();
+      setFormat('native33'); // triggers first generate()
+    }).catch(function(e){
+      fatal(e && e.message ? e.message : 'Startup failed.');
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

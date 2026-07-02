@@ -147,6 +147,18 @@ test/
 - Anyone holding the **WIF or the seed phrase/hex** controls the funds.
 - The 15-word format bakes in a creation-date "birthday" (day precision) for faster SPV
   restore; it reveals roughly when the wallet was made but never affects the keys.
+- **Content-Security-Policy** (`default-src 'none'`) is embedded in the page — the
+  browser is instructed to refuse *all* network fetches, so even injected code could not
+  exfiltrate keys.
+- **Startup self-test**: before enabling Generate, the page re-derives the canonical
+  test vectors (native 33-word, 15-word Bison, BIP39+passphrase, QR). A truncated or
+  corrupted copy of `index.html` fails loudly and disables itself instead of producing
+  wrong keys. A passing run shows *self-test ✓* in the badge when offline.
+- The header badge warns when the browser is **online**; generate real wallets
+  air-gapped.
+- If a **BIP39 passphrase** is set, the screen and the printed sheet both carry a
+  warning that the seed alone will not restore the wallet — store the passphrase
+  separately (it is never printed).
 - Print rather than screenshot; store the paper offline, safe from fire and theft.
 - **Verify before funding:** use the verify panel (or import into a Decred wallet) and
   send a small test deposit first.
