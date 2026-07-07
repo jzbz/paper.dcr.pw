@@ -2,7 +2,8 @@
 
 A **single, self-contained HTML file** that generates real, spendable Decred (DCR)
 mainnet paper wallets **entirely offline**. Open it in any modern browser — no server,
-no network, no dependencies. Save it to disk and run it air-gapped.
+no network, no runtime dependencies (everything is inlined). Save it to disk and run it
+air-gapped.
 
 > ⚠️ For real funds: save this page, disconnect from the network, generate, **print**
 > (don't screenshot), and store the paper offline. Send a small test deposit and confirm
@@ -65,18 +66,31 @@ you can print it. Words are re-rendered in canonical form (PGP casing / lowercas
 
 ## Cryptographic architecture
 
-Pure-JS, dependency-free. Web Crypto provides SHA-256/512, HMAC, and PBKDF2; everything
-Decred-specific is implemented from scratch:
+The Decred key engine is [**dcr-ts**](https://github.com/jzbz/dcr-ts), whose every
+consensus-critical byte format is verified byte-for-byte against
+[dcrd](https://github.com/decred/dcrd). Elliptic-curve math and the standard KDFs come
+from the audited [`@noble`](https://github.com/paulmillr/noble-curves) /
+[`@scure`](https://github.com/paulmillr/scure-bip39) packages that dcr-ts builds on. All
+of it is bundled by esbuild into the single offline `index.html`; nothing is fetched at
+runtime. (Earlier versions hand-rolled this engine — including a **WIF checksum bug**:
+Decred WIF uses a single-BLAKE-256 checksum like dcrd's `chainhash.HashB`, not the
+double-BLAKE-256 of base58check, so hand-rolled WIFs were rejected on import. dcr-ts fixes
+this.)
+
+dcr-ts provides:
 
 - **BLAKE-256 (r14)** — Decred hashes pubkeys with `blake256r14`, not SHA-256; also used
   for the 15-word seed tweak.
 - **RIPEMD-160** — `hash160 = ripemd160(blake256(pubkey))`.
-- **secp256k1** — BigInt affine math → compressed pubkeys.
+- **secp256k1** — via `@noble/curves` → compressed pubkeys.
 - **base58check** — Decred checksum = `blake256(blake256(payload))[:4]`.
   Address = `base58check([0x07,0x3f] ++ hash160)` (`Ds…`); WIF =
-  `base58check([0x22,0xde] ++ 0x00 ++ priv)` (`Pm…`).
-- **BIP32/39/44**, the Decred PGP seed encoding, and the DCRDEX/Bison 15-word encoding.
-- **QR codes** — Project Nayuki's public-domain generator → crisp SVG.
+  `base58check([0x22,0xde] ++ 0x00 ++ priv)` with the **single**-BLAKE-256 checksum (`Pm…`).
+- **BIP32/39/44** — HD derivation and mnemonics.
+
+The **Decred PGP seed encoding** and the **DCRDEX/Bison 15-word encoding** live in the app
+layer (`src/template.html`), built on those dcr-ts primitives. **QR codes** come from
+Project Nayuki's public-domain generator → crisp SVG.
 
 ### Verification — checked against canonical published vectors
 - `test/verify.js` (**36/36**): PGP encode/decode vs `dcrwallet/walletseed` vectors; full
@@ -90,7 +104,7 @@ Decred-specific is implemented from scratch:
 
 Reference vectors:
 - Native seed `000102…1f` → `DsUobw8mjYbXT9BrrwkNt5NaUveJyqiBDtc` /
-  `PmQemEJb6WZy33Lk2SccamHvXPovET3LxgFX7Q7pRiE6rg1cKo6M8`.
+  `PmQemEJb6WZy33Lk2SccamHvXPovET3LxgFX7Q7pRiE6rg1e4GBPh`.
 - 15-word `"peace option follow minute useful proud orphan zero truck response satisfy
   shell need chef silly"` → `DsXUwBFUZsGw6r1JXcAs2EFh6Ug51VDeWez` (birthday 2025-02-27).
 
@@ -110,15 +124,24 @@ pixel-faithful with zero network access.
 ## Build
 
 `index.html` is the **deliverable** and runs standalone — but it is *generated*, not
-hand-edited. The build inlines the vendored engines, the PGP word list, the fonts, and
-the favicon into `src/template.html` to produce the single offline file. Editing the
-generated 169 KB bundle (with ~70 KB of base64 fonts and minified libs inlined) directly
-would be error-prone and would obscure the security-critical code; keeping the crypto as
-separate, individually-reviewable, vector-tested files is the whole point. **Edit `src/`,
-then rebuild.**
+hand-edited. `npm run bundle` (esbuild) compiles the dcr-ts key engine into
+`src/engine.bundle.js`; `node build.js` then inlines that bundle, the PGP word list, the
+fonts, and the favicon into `src/template.html` to produce the single offline file. Editing
+the generated bundle directly would be error-prone and would obscure the security-critical
+code; keeping the crypto as a separate, vector-tested source is the whole point. **Edit
+`src/`, then rebuild.**
 
 ```
-node build.js          # src/template.html + engines + PGP list + fonts  ->  index.html
+npm install            # dev deps: dcr-ts (file:../dcr-ts), @noble/hashes, esbuild
+npm run build          # bundle the dcr-ts engine, then inline everything -> index.html
+npm test               # regenerates the bundle, then runs both vector suites (46 checks)
+```
+
+The individual steps, if you want them:
+
+```
+npm run bundle         # src/dcr-engine.mjs (+ dcr-ts + noble/scure)  ->  src/engine.bundle.js
+node build.js          # src/template.html + engine.bundle + PGP list + fonts  ->  index.html
 node test/verify.js    # crypto regression vs canonical dcrd/dcrwallet vectors (36/36)
 node test/verify15.js  # 15-word DCRDEX/Bison format vs canonical vectors (10/10)
 ```
@@ -126,13 +149,15 @@ node test/verify15.js  # 15-word DCRDEX/Bison format vs canonical vectors (10/10
 ```
 index.html               the deliverable — open offline (generated by build.js)
 README.md                this file
-build.js                 deterministic bundler (run from anywhere)
+package.json             dev deps + build/test scripts
+build.js                 deterministic inliner (run from anywhere)
+bundle.mjs               esbuild wrapper that produces src/engine.bundle.js
 src/
-  template.html          markup + CSS + app controller, with inline-blob placeholders
-  decred-crypto.js       vendored engine: BLAKE-256, RIPEMD-160, secp256k1, base58check,
-                         BIP32/39/44, Decred PGP seed + DCRDEX/Bison 15-word + hex
+  template.html          markup + CSS + app controller (incl. PGP seed + Bison 15-word)
+  dcr-engine.mjs         window.DCR engine, backed by dcr-ts (byte-exact with dcrd)
+  engine.bundle.js       generated by `npm run bundle` (git-ignored; not hand-edited)
   qrcode.js              vendored QR generator (Project Nayuki, public domain)
-  bip39-wordlist.js      the 2048-word BIP-0039 English list
+  bip39-wordlist.js      the 2048-word BIP-0039 English list (used by the 15-word encoder)
   pgp-words.json         the 512-word Decred PGP list (byte-exact from dcrwallet)
   fonts/*.woff2          Space Grotesk + JetBrains Mono (latin subset, base64'd at build)
 test/

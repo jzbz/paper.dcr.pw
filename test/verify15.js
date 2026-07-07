@@ -9,7 +9,7 @@ const nc = require('crypto');
 const src = (p) => path.join(__dirname, '..', 'src', p);
 
 global.window = {};
-eval(fs.readFileSync(src('decred-crypto.js'), 'utf8'));
+eval(fs.readFileSync(src('engine.bundle.js'), 'utf8')); // dcr-ts-backed engine
 const DCR = global.window.DCR;
 eval(fs.readFileSync(src('bip39-wordlist.js'), 'utf8'));
 DCR.setWordlist(global.window.BIP39_WORDLIST);

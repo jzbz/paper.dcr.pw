@@ -8,7 +8,7 @@ const src = (p) => path.join(__dirname, '..', 'src', p);
 
 // ---- load the engine (it assigns window.DCR) ----
 global.window = {};
-const engineSrc = fs.readFileSync(src('decred-crypto.js'), 'utf8');
+const engineSrc = fs.readFileSync(src('engine.bundle.js'), 'utf8'); // dcr-ts-backed engine
 eval(engineSrc);
 const DCR = global.window.DCR;
 

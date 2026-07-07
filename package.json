@@ -1,0 +1,17 @@
+{
+  "name": "paper.dcr.pw",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Offline single-file Decred paper wallet generator. Crypto engine backed by dcr-ts (byte-exact with dcrd).",
+  "scripts": {
+    "bundle": "node bundle.mjs",
+    "build": "npm run bundle && node build.js",
+    "pretest": "npm run bundle",
+    "test": "node test/verify.js && node test/verify15.js"
+  },
+  "devDependencies": {
+    "dcr-ts": "file:../dcr-ts",
+    "@noble/hashes": "^1.8.0",
+    "esbuild": "^0.27.0"
+  }
+}
