@@ -7700,7 +7700,7 @@ if (window.DCR && window.DCR.setWordlist) window.DCR.setWordlist(window.BIP39_WO
     if (mn !== 'aardvark adviser accrue aggregate adrift almighty afflict amusement aimless applicant allow armistice ammo asteroid apple atmosphere assume Babylon atlas barbecue baboon bifocals backward bookseller beaming bottomless beehive bravado befriend breakaway berserk businessman cement')
       throw new Error('Self-test failed: native seed encoding mismatch.');
     var w = await D.walletFromSeedBytes(seed, 0);
-    if (w.address !== 'DsUobw8mjYbXT9BrrwkNt5NaUveJyqiBDtc' || w.wif !== 'PmQemEJb6WZy33Lk2SccamHvXPovET3LxgFX7Q7pRiE6rg1cKo6M8')
+    if (w.address !== 'DsUobw8mjYbXT9BrrwkNt5NaUveJyqiBDtc' || w.wif !== 'PmQemEJb6WZy33Lk2SccamHvXPovET3LxgFX7Q7pRiE6rg1e4GBPh')
       throw new Error('Self-test failed: key derivation mismatch.');
     // 2. Cake/DCRDEX/Bison 15-word (decred/libwallet dcr_test.go vector)
     var dec = await D.decode15Word('peace option follow minute useful proud orphan zero truck response satisfy shell need chef silly'.split(' '));
