@@ -7,9 +7,12 @@
  * builds on, instead of being hand-implemented here.
  *
  * The public surface (window.DCR.*) is identical to the old engine, so
- * index.html and test/*.js are unchanged. The one behavioural change is a bug
- * fix: WIF now uses dcrd's single-BLAKE-256 checksum (the old engine used a
- * double-BLAKE-256 checksum, producing WIFs that dcrwallet/Decrediton reject).
+ * index.html and test/*.js are unchanged. Two behavioural changes, both bug
+ * fixes: WIF uses dcrd's single-BLAKE-256 checksum (the old engine used a
+ * double-BLAKE-256 checksum, producing WIFs that dcrwallet/Decrediton reject),
+ * and hardened derivation follows dcrd's hdkeychain rather than strict BIP32
+ * (ExtendedKey.derive() is the Decred variant; deriveBip32Std is the strict
+ * form).
  *
  * esbuild bundles this (+ dcr-ts + noble/scure) into a single IIFE that
  * build.js inlines into the offline index.html.

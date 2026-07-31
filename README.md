@@ -77,6 +77,14 @@ Decred WIF uses a single-BLAKE-256 checksum like dcrd's `chainhash.HashB`, not t
 double-BLAKE-256 of base58check, so hand-rolled WIFs were rejected on import. dcr-ts fixes
 this.)
 
+The same care applies to **hardened HD derivation**. Decred deliberately deviates from
+strict BIP32 — dcrd's `hdkeychain.Child` strips leading zero bytes from a derived private
+key and carries the shortened key into the next hardened HMAC, and dcrwallet uses that
+variant for the whole wallet path. Strict BIP32 derives an entirely different wallet for
+roughly **1 seed in 128** on `m/44'/42'/0'/0/0`; dcr-ts implements the Decred variant and
+verified it against dcrd over 400 seeds, so a phrase generated here restores to the same
+address in Decrediton and dcrwallet.
+
 dcr-ts provides:
 
 - **BLAKE-256 (r14)** — Decred hashes pubkeys with `blake256r14`, not SHA-256; also used

@@ -455,12 +455,12 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     if (hl % 2)
       throw new Error("hex string expected, got unpadded hex of length " + hl);
     const array = new Uint8Array(al);
-    for (let ai = 0, hi2 = 0; ai < al; ai++, hi2 += 2) {
-      const n1 = asciiToBase16(hex.charCodeAt(hi2));
-      const n2 = asciiToBase16(hex.charCodeAt(hi2 + 1));
+    for (let ai = 0, hi = 0; ai < al; ai++, hi += 2) {
+      const n1 = asciiToBase16(hex.charCodeAt(hi));
+      const n2 = asciiToBase16(hex.charCodeAt(hi + 1));
       if (n1 === void 0 || n2 === void 0) {
-        const char = hex[hi2] + hex[hi2 + 1];
-        throw new Error('hex string expected, got non-hex character "' + char + '" at index ' + hi2);
+        const char = hex[hi] + hex[hi + 1];
+        throw new Error('hex string expected, got non-hex character "' + char + '" at index ' + hi);
       }
       array[ai] = n1 * 16 + n2;
     }
@@ -2219,8 +2219,8 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         try {
           y = Fp.sqrt(y2);
         } catch (sqrtError) {
-          const err = sqrtError instanceof Error ? ": " + sqrtError.message : "";
-          throw new Error("bad point: is not on curve, sqrt error" + err);
+          const err2 = sqrtError instanceof Error ? ": " + sqrtError.message : "";
+          throw new Error("bad point: is not on curve, sqrt error" + err2);
         }
         assertCompressionIsSupported();
         const isYOdd = Fp.isOdd(y);
@@ -5507,6 +5507,17 @@ zone
 zoo`.split("\n");
 
   // ../dcr-ts/dist/index.js
+  var DcrError = class extends Error {
+    constructor(code, message, options) {
+      super(message, options);
+      __publicField(this, "code");
+      __publicField(this, "name", "DcrError");
+      this.code = code;
+    }
+  };
+  function err(code, who, message) {
+    return new DcrError(code, `${who}: ${message}`);
+  }
   var IV = Uint32Array.of(
     1779033703,
     3144134277,
@@ -5700,9 +5711,6 @@ zoo`.split("\n");
   var ROUNDS = 14;
   var BLAKE256_DIGEST_LENGTH = 32;
   var BLAKE256_BLOCK_LENGTH = 64;
-  function rotr2(x, n) {
-    return x >>> n | x << 32 - n;
-  }
   var V = new Uint32Array(16);
   var M = new Uint32Array(16);
   function compress(h, block, offset, t0, t1, nullt) {
@@ -5732,38 +5740,198 @@ zoo`.split("\n");
       V[14] ^= t1;
       V[15] ^= t1;
     }
+    let p, s0, s1;
+    let va, vb, vc, vd, t;
     for (let r = 0; r < ROUNDS; r++) {
       const s = r % 10 * 16;
-      g(0, 4, 8, 12, s, 0);
-      g(1, 5, 9, 13, s, 1);
-      g(2, 6, 10, 14, s, 2);
-      g(3, 7, 11, 15, s, 3);
-      g(0, 5, 10, 15, s, 4);
-      g(1, 6, 11, 12, s, 5);
-      g(2, 7, 8, 13, s, 6);
-      g(3, 4, 9, 14, s, 7);
+      p = s + 0;
+      s0 = SIGMA[p];
+      s1 = SIGMA[p + 1];
+      va = V[0];
+      vb = V[4];
+      vc = V[8];
+      vd = V[12];
+      va = va + vb + ((M[s0] ^ C[s1]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 16 | t << 16;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 12 | t << 20;
+      va = va + vb + ((M[s1] ^ C[s0]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 8 | t << 24;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 7 | t << 25;
+      V[0] = va;
+      V[4] = vb;
+      V[8] = vc;
+      V[12] = vd;
+      p = s + 2;
+      s0 = SIGMA[p];
+      s1 = SIGMA[p + 1];
+      va = V[1];
+      vb = V[5];
+      vc = V[9];
+      vd = V[13];
+      va = va + vb + ((M[s0] ^ C[s1]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 16 | t << 16;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 12 | t << 20;
+      va = va + vb + ((M[s1] ^ C[s0]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 8 | t << 24;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 7 | t << 25;
+      V[1] = va;
+      V[5] = vb;
+      V[9] = vc;
+      V[13] = vd;
+      p = s + 4;
+      s0 = SIGMA[p];
+      s1 = SIGMA[p + 1];
+      va = V[2];
+      vb = V[6];
+      vc = V[10];
+      vd = V[14];
+      va = va + vb + ((M[s0] ^ C[s1]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 16 | t << 16;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 12 | t << 20;
+      va = va + vb + ((M[s1] ^ C[s0]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 8 | t << 24;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 7 | t << 25;
+      V[2] = va;
+      V[6] = vb;
+      V[10] = vc;
+      V[14] = vd;
+      p = s + 6;
+      s0 = SIGMA[p];
+      s1 = SIGMA[p + 1];
+      va = V[3];
+      vb = V[7];
+      vc = V[11];
+      vd = V[15];
+      va = va + vb + ((M[s0] ^ C[s1]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 16 | t << 16;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 12 | t << 20;
+      va = va + vb + ((M[s1] ^ C[s0]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 8 | t << 24;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 7 | t << 25;
+      V[3] = va;
+      V[7] = vb;
+      V[11] = vc;
+      V[15] = vd;
+      p = s + 8;
+      s0 = SIGMA[p];
+      s1 = SIGMA[p + 1];
+      va = V[0];
+      vb = V[5];
+      vc = V[10];
+      vd = V[15];
+      va = va + vb + ((M[s0] ^ C[s1]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 16 | t << 16;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 12 | t << 20;
+      va = va + vb + ((M[s1] ^ C[s0]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 8 | t << 24;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 7 | t << 25;
+      V[0] = va;
+      V[5] = vb;
+      V[10] = vc;
+      V[15] = vd;
+      p = s + 10;
+      s0 = SIGMA[p];
+      s1 = SIGMA[p + 1];
+      va = V[1];
+      vb = V[6];
+      vc = V[11];
+      vd = V[12];
+      va = va + vb + ((M[s0] ^ C[s1]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 16 | t << 16;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 12 | t << 20;
+      va = va + vb + ((M[s1] ^ C[s0]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 8 | t << 24;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 7 | t << 25;
+      V[1] = va;
+      V[6] = vb;
+      V[11] = vc;
+      V[12] = vd;
+      p = s + 12;
+      s0 = SIGMA[p];
+      s1 = SIGMA[p + 1];
+      va = V[2];
+      vb = V[7];
+      vc = V[8];
+      vd = V[13];
+      va = va + vb + ((M[s0] ^ C[s1]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 16 | t << 16;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 12 | t << 20;
+      va = va + vb + ((M[s1] ^ C[s0]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 8 | t << 24;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 7 | t << 25;
+      V[2] = va;
+      V[7] = vb;
+      V[8] = vc;
+      V[13] = vd;
+      p = s + 14;
+      s0 = SIGMA[p];
+      s1 = SIGMA[p + 1];
+      va = V[3];
+      vb = V[4];
+      vc = V[9];
+      vd = V[14];
+      va = va + vb + ((M[s0] ^ C[s1]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 16 | t << 16;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 12 | t << 20;
+      va = va + vb + ((M[s1] ^ C[s0]) >>> 0) >>> 0;
+      t = vd ^ va;
+      vd = t >>> 8 | t << 24;
+      vc = vc + vd >>> 0;
+      t = vb ^ vc;
+      vb = t >>> 7 | t << 25;
+      V[3] = va;
+      V[4] = vb;
+      V[9] = vc;
+      V[14] = vd;
     }
     for (let i = 0; i < 8; i++) {
       h[i] = (h[i] ^ V[i] ^ V[i + 8]) >>> 0;
     }
-  }
-  function g(a, b, c, d, sBase, e) {
-    const p = sBase + e * 2;
-    const s0 = SIGMA[p];
-    const s1 = SIGMA[p + 1];
-    let va = V[a], vb = V[b], vc = V[c], vd = V[d];
-    va = va + vb + ((M[s0] ^ C[s1]) >>> 0) >>> 0;
-    vd = rotr2(vd ^ va, 16);
-    vc = vc + vd >>> 0;
-    vb = rotr2(vb ^ vc, 12);
-    va = va + vb + ((M[s1] ^ C[s0]) >>> 0) >>> 0;
-    vd = rotr2(vd ^ va, 8);
-    vc = vc + vd >>> 0;
-    vb = rotr2(vb ^ vc, 7);
-    V[a] = va;
-    V[b] = vb;
-    V[c] = vc;
-    V[d] = vd;
   }
   var Blake256 = class {
     constructor() {
@@ -5777,7 +5945,7 @@ zoo`.split("\n");
       __publicField(this, "finished", false);
     }
     update(data) {
-      if (this.finished) throw new Error("Blake256: update after digest");
+      if (this.finished) throw err("invalid-argument", "Blake256", "update after digest");
       let i = 0;
       const n = data.length;
       this.total += n;
@@ -5789,15 +5957,13 @@ zoo`.split("\n");
         i = take;
         if (this.buflen === BLAKE256_BLOCK_LENGTH) {
           this.compressed += BLAKE256_BLOCK_LENGTH;
-          const bits = BigInt(this.compressed) * 8n;
-          compress(this.h, this.buf, 0, lo(bits), hi(bits), false);
+          compress(this.h, this.buf, 0, lo32(this.compressed), hi32(this.compressed), false);
           this.buflen = 0;
         }
       }
       while (n - i >= BLAKE256_BLOCK_LENGTH) {
         this.compressed += BLAKE256_BLOCK_LENGTH;
-        const bits = BigInt(this.compressed) * 8n;
-        compress(this.h, data, i, lo(bits), hi(bits), false);
+        compress(this.h, data, i, lo32(this.compressed), hi32(this.compressed), false);
         i += BLAKE256_BLOCK_LENGTH;
       }
       if (i < n) {
@@ -5807,24 +5973,23 @@ zoo`.split("\n");
       return this;
     }
     digest() {
-      if (this.finished) throw new Error("Blake256: digest called twice");
+      if (this.finished) throw err("invalid-argument", "Blake256", "digest called twice");
       this.finished = true;
       const rem = this.buflen;
-      const totalBits = BigInt(this.total) * 8n;
       const block = new Uint8Array(BLAKE256_BLOCK_LENGTH);
       block.set(this.buf.subarray(0, rem));
       if (rem <= 55) {
         block[rem] = 128;
         block[55] |= 1;
-        writeLen(block, totalBits);
+        writeLen(block, this.total);
         if (rem === 0) compress(this.h, block, 0, 0, 0, true);
-        else compress(this.h, block, 0, lo(totalBits), hi(totalBits), false);
+        else compress(this.h, block, 0, lo32(this.total), hi32(this.total), false);
       } else {
         block[rem] = 128;
-        compress(this.h, block, 0, lo(totalBits), hi(totalBits), false);
+        compress(this.h, block, 0, lo32(this.total), hi32(this.total), false);
         const tail = new Uint8Array(BLAKE256_BLOCK_LENGTH);
         tail[55] = 1;
-        writeLen(tail, totalBits);
+        writeLen(tail, this.total);
         compress(this.h, tail, 0, 0, 0, true);
       }
       const out = new Uint8Array(BLAKE256_DIGEST_LENGTH);
@@ -5838,15 +6003,15 @@ zoo`.split("\n");
       return out;
     }
   };
-  function lo(bits) {
-    return Number(bits & 0xffffffffn);
+  function lo32(bytes) {
+    return bytes * 8 >>> 0;
   }
-  function hi(bits) {
-    return Number(bits >> 32n & 0xffffffffn);
+  function hi32(bytes) {
+    return Math.floor(bytes * 8 / 4294967296) >>> 0;
   }
-  function writeLen(block, totalBits) {
-    const h = hi(totalBits);
-    const l = lo(totalBits);
+  function writeLen(block, totalBytes) {
+    const h = hi32(totalBytes);
+    const l = lo32(totalBytes);
     block[56] = h >>> 24 & 255;
     block[57] = h >>> 16 & 255;
     block[58] = h >>> 8 & 255;
@@ -5884,6 +6049,9 @@ zoo`.split("\n");
     }
     return "1".repeat(zeros) + out;
   }
+  function maxBase58Length(decodedLen) {
+    return Math.floor(decodedLen * 137 / 100) + 1;
+  }
   function base58Decode(str) {
     let zeros = 0;
     while (zeros < str.length && str[zeros] === "1") zeros++;
@@ -5891,7 +6059,7 @@ zoo`.split("\n");
     for (let i = 0; i < str.length; i++) {
       const code = str.charCodeAt(i);
       const val = code < 128 ? INDEX[code] : 255;
-      if (val === 255) throw new Error(`invalid base58 character '${str[i]}'`);
+      if (val === 255) throw err("invalid-base58", "base58Decode", `invalid character '${str[i]}' at index ${i}`);
       num = num * BASE + BigInt(val);
     }
     const tail = [];
@@ -5913,14 +6081,33 @@ zoo`.split("\n");
   }
   function checkDecode(str) {
     const full = base58Decode(str);
-    if (full.length < 4) throw new Error("base58check: too short");
+    if (full.length < 4) throw err("bad-length", "base58check", "input is shorter than the 4-byte checksum");
     const data = full.subarray(0, full.length - 4);
     const checksum2 = full.subarray(full.length - 4);
     const expected = hash256(data).subarray(0, 4);
     for (let i = 0; i < 4; i++) {
-      if (checksum2[i] !== expected[i]) throw new Error("base58check: bad checksum");
+      if (checksum2[i] !== expected[i]) throw err("bad-checksum", "base58check", "checksum does not match");
     }
     return data.slice();
+  }
+  function copyOf(src, off, n) {
+    if (!Number.isInteger(off) || !Number.isInteger(n) || off < 0 || n < 0) {
+      throw err(
+        "not-an-integer",
+        "copyOf",
+        `offset and length must be non-negative integers, got ${off}, ${n}`
+      );
+    }
+    if (off + n > src.length) {
+      throw err(
+        "out-of-range",
+        "copyOf",
+        `reading ${n} bytes at ${off} overruns a ${src.length}-byte source`
+      );
+    }
+    const out = new Uint8Array(n);
+    out.set(src.subarray(off, off + n));
+    return out;
   }
   var mainnet = {
     name: "mainnet",
@@ -5996,6 +6183,27 @@ zoo`.split("\n");
       return false;
     }
   }
+  function assertPubKey(key, who) {
+    if (key.length !== 33 && key.length !== 65) {
+      throw err(
+        "invalid-public-key",
+        who,
+        `public key must be 33 (compressed) or 65 (uncompressed) bytes, got ${key.length}`
+      );
+    }
+    const prefix = key[0];
+    const ok = key.length === 33 ? prefix === 2 || prefix === 3 : prefix === 4;
+    if (!ok) {
+      throw err(
+        "invalid-public-key",
+        who,
+        `public key has prefix 0x${prefix.toString(16).padStart(2, "0")}, which is not valid for a ${key.length}-byte key`
+      );
+    }
+    if (!isValidPublicKey(key)) {
+      throw err("invalid-public-key", who, "public key is not a point on the secp256k1 curve");
+    }
+  }
   function scalarToBytes(x) {
     const out = new Uint8Array(32);
     let v = x;
@@ -6017,12 +6225,18 @@ zoo`.split("\n");
     if (child === 0n) return null;
     return scalarToBytes(child);
   }
-  function publicKeyTweakAdd(kPar, il) {
+  function parsePublicKeyPoint(key) {
+    try {
+      return secp256k1.ProjectivePoint.fromHex(key);
+    } catch {
+      return null;
+    }
+  }
+  function publicKeyTweakAddPoint(parent, il) {
     const ilInt = bytesToBigInt(il);
     if (ilInt >= CURVE_ORDER || ilInt === 0n) return null;
     const P = secp256k1.ProjectivePoint;
     try {
-      const parent = P.fromHex(kPar);
       const child = P.BASE.multiply(ilInt).add(parent);
       if (child.equals(P.ZERO)) return null;
       return child.toRawBytes(true);
@@ -6030,6 +6244,7 @@ zoo`.split("\n");
       return null;
     }
   }
+  var MAX_ADDRESS_LENGTH = maxBase58Length(33 + 2 + 4);
   var PREFIXES = [];
   for (const network of Object.values(networks)) {
     PREFIXES.push(
@@ -6048,11 +6263,12 @@ zoo`.split("\n");
     return checkEncode(data);
   }
   function pubKeyHashAddress(hash, network) {
-    if (hash.length !== 20) throw new Error("pubKeyHashAddress: hash must be 20 bytes");
+    if (hash.length !== 20) throw err("bad-length", "pubKeyHashAddress", `hash must be 20 bytes, got ${hash.length}`);
     return encode(network.pubKeyHashAddrId, hash);
   }
-  function addressFromPubKey(compressedPubKey, network) {
-    return pubKeyHashAddress(hash160(compressedPubKey), network);
+  function addressFromPubKey(pubKey, network) {
+    assertPubKey(pubKey, "addressFromPubKey");
+    return pubKeyHashAddress(hash160(pubKey), network);
   }
   var SignatureType = /*  */ ((SignatureType2) => {
     SignatureType2[SignatureType2["Ecdsa"] = 0] = "Ecdsa";
@@ -6064,7 +6280,7 @@ zoo`.split("\n");
     return blake256(data).subarray(0, 4);
   }
   function encodeWif(privateKey, network, signatureType = 0) {
-    if (privateKey.length !== 32) throw new Error("encodeWif: private key must be 32 bytes");
+    if (privateKey.length !== 32) throw err("bad-length", "encodeWif", `private key must be 32 bytes, got ${privateKey.length}`);
     const payload = new Uint8Array(3 + 32);
     payload[0] = network.privateKeyId[0];
     payload[1] = network.privateKeyId[1];
@@ -6075,10 +6291,15 @@ zoo`.split("\n");
     full.set(wifChecksum(payload), payload.length);
     return base58Encode(full);
   }
+  var MAX_WIF_LENGTH = maxBase58Length(39);
   var HARDENED_OFFSET = 2147483648;
   var MASTER_HMAC_KEY = new TextEncoder().encode("Bitcoin seed");
   var SERIALIZED_LENGTH = 78;
+  var MAX_EXTENDED_KEY_LENGTH = maxBase58Length(SERIALIZED_LENGTH + 4);
   function hardened(index) {
+    if (!Number.isInteger(index) || index < 0 || index >= HARDENED_OFFSET) {
+      throw err(Number.isInteger(index) ? "out-of-range" : "not-an-integer", "hardened", `index must be an integer in 0..2^31-1, got ${index}`);
+    }
     return index + HARDENED_OFFSET >>> 0;
   }
   function ser32(value) {
@@ -6089,34 +6310,49 @@ zoo`.split("\n");
       value & 255
     );
   }
+  function leadingZeros(key) {
+    let n = 0;
+    while (n < key.length && key[n] === 0) n++;
+    return n;
+  }
   var ExtendedKey = class _ExtendedKey {
-    constructor(network, isPrivate, privateKey, compressedPublicKey, chainCode, depth, parentFingerprint, childNumber) {
+    constructor(network, isPrivate, privateKey, compressedPublicKey, chainCodeBytes, depth, parentFingerprintBytes, childNumber, scalarStripped = false) {
       __publicField(this, "network");
       __publicField(this, "isPrivate");
       __publicField(this, "privateKey");
       __publicField(this, "compressedPublicKey");
-      __publicField(this, "chainCode");
+      __publicField(this, "chainCodeBytes");
       __publicField(this, "depth");
-      __publicField(this, "parentFingerprint");
+      __publicField(this, "parentFingerprintBytes");
       __publicField(this, "childNumber");
+      __publicField(this, "scalarStripped");
+      /** Memoized hash160 of the public key; see {@link identifier}. */
+      __publicField(this, "cachedIdentifier");
+      /**
+       * Memoized decompression of {@link compressedPublicKey}, so deriving a chain of
+       * public children does the modular square root once instead of per step. Only
+       * populated on the public-derivation path.
+       */
+      __publicField(this, "cachedPoint");
       this.network = network;
       this.isPrivate = isPrivate;
       this.privateKey = privateKey;
       this.compressedPublicKey = compressedPublicKey;
-      this.chainCode = chainCode;
+      this.chainCodeBytes = chainCodeBytes;
       this.depth = depth;
-      this.parentFingerprint = parentFingerprint;
+      this.parentFingerprintBytes = parentFingerprintBytes;
       this.childNumber = childNumber;
+      this.scalarStripped = scalarStripped;
     }
     /** Derive a master key from a BIP32 seed (16–64 bytes). */
     static fromSeed(seed, network) {
       if (seed.length < 16 || seed.length > 64) {
-        throw new Error("hd: seed must be 16..64 bytes");
+        throw err("out-of-range", "ExtendedKey.fromSeed", `seed must be 16..64 bytes, got ${seed.length}`);
       }
       const I = hmac(sha5122, MASTER_HMAC_KEY, seed);
       const il = I.subarray(0, 32);
       const ir = I.subarray(32, 64);
-      if (!isValidPrivateKey(il)) throw new Error("hd: invalid master key (retry with new seed)");
+      if (!isValidPrivateKey(il)) throw err("invalid-private-key", "ExtendedKey.fromSeed", "seed produced an unusable master key; retry with a new seed");
       return new _ExtendedKey(
         network,
         true,
@@ -6134,40 +6370,94 @@ zoo`.split("\n");
     }
     /** The 32-byte private scalar. Throws for a public key. */
     privateKeyBytes() {
-      if (!this.privateKey) throw new Error("hd: not a private key");
+      if (!this.privateKey) throw err("not-a-private-key", "ExtendedKey.privateKeyBytes", "this is a public (neutered) key");
       return this.privateKey.slice();
     }
-    /** Identifier = hash160(compressed pubkey); the fingerprint is its first 4 bytes. */
+    /**
+     * The 32-byte chain code. A copy: the key's own derivation reads the internal
+     * bytes, so handing out a live view would let a caller change what this key
+     * derives.
+     */
+    get chainCode() {
+      return copyOf(this.chainCodeBytes, 0, 32);
+    }
+    /** The parent's 4-byte fingerprint, or four zero bytes for a master key. A copy. */
+    get parentFingerprint() {
+      return copyOf(this.parentFingerprintBytes, 0, 4);
+    }
+    /**
+     * Identifier = hash160(compressed pubkey); the fingerprint is its first 4 bytes.
+     *
+     * Memoized, because `derive` needs the parent fingerprint for every child and
+     * would otherwise recompute a BLAKE-256 plus a RIPEMD-160 of the same key at
+     * every step. Both accessors return copies: the memo turned what used to be a
+     * per-call throwaway digest into long-lived shared state, so handing out a view
+     * would let one caller's write corrupt the cache, this key's own fingerprint,
+     * every sibling's `parentFingerprint` and every child derived afterwards.
+     */
     identifier() {
-      return hash160(this.compressedPublicKey);
+      return copyOf(this.identifierBytes(), 0, 20);
     }
     fingerprint() {
-      return this.identifier().subarray(0, 4);
+      return copyOf(this.identifierBytes(), 0, 4);
     }
-    /** Derive a child key by index. Use {@link hardened} for hardened indices. */
+    /** The memoized digest itself. Never escapes this class. */
+    identifierBytes() {
+      if (this.cachedIdentifier === void 0) {
+        this.cachedIdentifier = hash160(this.compressedPublicKey);
+      }
+      return this.cachedIdentifier;
+    }
+    /**
+     * Derive a child key by index, the **Decred way** — the equivalent of dcrd
+     * `hdkeychain.Child`, and what dcrwallet and Decrediton derive with for the
+     * whole wallet path. Use {@link hardened} for hardened indices.
+     *
+     * This is the default because it is what the Decred ecosystem derives; see
+     * {@link deriveBip32Std} for the strict form and the module docs for why they
+     * differ.
+     */
     derive(index) {
-      if (this.depth >= 255) throw new Error("hd: cannot derive beyond depth 255");
+      return this.deriveInner(index, false);
+    }
+    /**
+     * Derive a child key by **strict BIP32** — the equivalent of dcrd
+     * `hdkeychain.ChildBIP32Std`, retaining the leading zero bytes of the parent
+     * private key that {@link derive} strips.
+     *
+     * Produces different hardened children from {@link derive} for any parent
+     * scalar with a leading zero byte, which is about 1 key in 256 at each
+     * hardened step. Use it only when strict BIP32 is what you want; anything that
+     * has to agree with a dcrwallet or Decrediton seed must not.
+     */
+    deriveBip32Std(index) {
+      return this.deriveInner(index, true);
+    }
+    deriveInner(index, strictBip32) {
+      if (this.depth >= 255) throw err("max-depth", "ExtendedKey.derive", "cannot derive beyond depth 255, which is all a single byte can serialize");
+      if (!Number.isInteger(index)) throw err("not-an-integer", "ExtendedKey.derive", `index must be an integer, got ${index}`);
+      if (index < 0 || index > 4294967295) throw err("out-of-range", "ExtendedKey.derive", `index ${index} is outside 0..2^32-1`);
       const idx = index >>> 0;
       const isHardened = idx >= HARDENED_OFFSET;
       const data = new Uint8Array(37);
       if (isHardened) {
         if (!this.privateKey) {
-          throw new Error("hd: cannot derive a hardened child from a public key");
+          throw err("hardened-from-public", "ExtendedKey.derive", "cannot derive a hardened child from a public key");
         }
-        data[0] = 0;
-        data.set(this.privateKey, 1);
+        const skip = this.scalarStripped ? leadingZeros(this.privateKey) : 0;
+        data.set(this.privateKey.subarray(skip), 1);
       } else {
         data.set(this.compressedPublicKey, 0);
       }
       data.set(ser32(idx), 33);
-      const I = hmac(sha5122, this.chainCode, data);
+      const I = hmac(sha5122, this.chainCodeBytes, data);
       const il = I.subarray(0, 32);
       const childChainCode = I.subarray(32, 64).slice();
       const parentFp = this.fingerprint();
       const childDepth = this.depth + 1;
       if (this.privateKey) {
         const childPriv = privateKeyTweakAdd(this.privateKey, il);
-        if (!childPriv) throw new Error("hd: invalid child key (retry with next index)");
+        if (!childPriv) throw err("invalid-child", "ExtendedKey.derive", "derived an invalid child key; retry with the next index");
         return new _ExtendedKey(
           this.network,
           true,
@@ -6176,11 +6466,19 @@ zoo`.split("\n");
           childChainCode,
           childDepth,
           parentFp,
-          idx
+          idx,
+          // dcrd's `child` strips the derived scalar unless strict BIP32 was asked
+          // for, and that state is what the next hardened step reads.
+          !strictBip32
         );
       }
-      const childPub = publicKeyTweakAdd(this.compressedPublicKey, il);
-      if (!childPub) throw new Error("hd: invalid child key (retry with next index)");
+      if (this.cachedPoint === void 0) {
+        const parsed = parsePublicKeyPoint(this.compressedPublicKey);
+        if (parsed === null) throw err("invalid-public-key", "ExtendedKey.derive", "public key is not a valid curve point");
+        this.cachedPoint = parsed;
+      }
+      const childPub = publicKeyTweakAddPoint(this.cachedPoint, il);
+      if (!childPub) throw err("invalid-child", "ExtendedKey.derive", "derived an invalid child key; retry with the next index");
       return new _ExtendedKey(
         this.network,
         false,
@@ -6193,10 +6491,21 @@ zoo`.split("\n");
       );
     }
     /**
-     * Derive along a path like `m/44'/42'/0'/0/0`. An apostrophe or `h` marks a
-     * hardened index.
+     * Derive along a path like `m/44'/42'/0'/0/0`, the **Decred way** (see
+     * {@link derive}). An apostrophe or `h` marks a hardened index.
      */
     derivePath(path) {
+      return this.derivePathInner(path, false);
+    }
+    /**
+     * Derive along a path using **strict BIP32** (see {@link deriveBip32Std}).
+     * Diverges from {@link derivePath} below any hardened step whose parent scalar
+     * has a leading zero byte, so do not use it to reproduce a wallet seed.
+     */
+    derivePathBip32Std(path) {
+      return this.derivePathInner(path, true);
+    }
+    derivePathInner(path, strictBip32) {
       const parts = path.trim().split("/");
       if (parts[0] === "m" || parts[0] === "M") parts.shift();
       let key = this;
@@ -6204,13 +6513,14 @@ zoo`.split("\n");
         const isH = raw.endsWith("'") || raw.endsWith("h") || raw.endsWith("H");
         const numStr = isH ? raw.slice(0, -1) : raw;
         if (!/^\d+$/.test(numStr)) {
-          throw new Error(`hd: invalid path element '${raw}'`);
+          throw err("invalid-path", "ExtendedKey.derivePath", `invalid path element '${raw}'`);
         }
         const n = Number(numStr);
         if (n >= HARDENED_OFFSET) {
-          throw new Error(`hd: path index ${n} out of range`);
+          throw err("invalid-path", "ExtendedKey.derivePath", `path index ${n} is at or above the hardened offset; write it as ${n - HARDENED_OFFSET}' instead`);
         }
-        key = key.derive(isH ? hardened(n) : n);
+        const idx = isH ? hardened(n) : n;
+        key = strictBip32 ? key.deriveBip32Std(idx) : key.derive(idx);
       }
       return key;
     }
@@ -6222,9 +6532,9 @@ zoo`.split("\n");
         false,
         null,
         this.compressedPublicKey,
-        this.chainCode,
+        this.chainCodeBytes,
         this.depth,
-        this.parentFingerprint,
+        this.parentFingerprintBytes,
         this.childNumber
       );
     }
@@ -6241,9 +6551,9 @@ zoo`.split("\n");
       out[2] = version[2];
       out[3] = version[3];
       out[4] = this.depth & 255;
-      out.set(this.parentFingerprint, 5);
+      out.set(this.parentFingerprintBytes, 5);
       out.set(ser32(this.childNumber), 9);
-      out.set(this.chainCode, 13);
+      out.set(this.chainCodeBytes, 13);
       if (this.isPrivate) {
         out[45] = 0;
         out.set(this.privateKey, 46);
@@ -6258,25 +6568,39 @@ zoo`.split("\n");
     }
     /** Parse an extended key string, validating the checksum and version. */
     static fromString(str) {
+      if (str.length > MAX_EXTENDED_KEY_LENGTH) {
+        throw err(
+          "input-too-long",
+          "ExtendedKey.fromString",
+          `${str.length} characters exceeds the ${MAX_EXTENDED_KEY_LENGTH}-character maximum`
+        );
+      }
       const data = checkDecode(str);
       return _ExtendedKey.fromSerialized(data);
     }
-    /** Parse a raw 78-byte serialization (checksum already verified/absent). */
+    /**
+     * Parse a raw 78-byte serialization (checksum already verified/absent).
+     *
+     * Every field is copied out of `data`, so the returned key does not alias the
+     * caller's buffer — which matters most here, because a caller doing the right
+     * thing and wiping the serialization after parsing would otherwise destroy the
+     * key it just parsed. See {@link copyOf}.
+     */
     static fromSerialized(data) {
-      if (data.length !== SERIALIZED_LENGTH) throw new Error("hd: bad serialized length");
+      if (data.length !== SERIALIZED_LENGTH) throw err("bad-length", "ExtendedKey.fromSerialized", `expected ${SERIALIZED_LENGTH} bytes, got ${data.length}`);
       const version = [data[0], data[1], data[2], data[3]];
       const depth = data[4];
-      const parentFingerprint = data.slice(5, 9);
+      const parentFingerprint = copyOf(data, 5, 4);
       const childNumber = (data[9] << 24 | data[10] << 16 | data[11] << 8 | data[12]) >>> 0;
-      const chainCode = data.slice(13, 45);
-      const keyData = data.slice(45, 78);
+      const chainCode = copyOf(data, 13, 32);
+      const keyData = copyOf(data, 45, 33);
       const found = matchVersion(version);
-      if (!found) throw new Error("hd: unknown extended-key version");
+      if (!found) throw err("unknown-version", "ExtendedKey.fromSerialized", `no network has the extended-key version 0x${version.map((b) => b.toString(16).padStart(2, "0")).join("")}`);
       const { network, isPrivate } = found;
       if (isPrivate) {
-        if (keyData[0] !== 0) throw new Error("hd: bad private key prefix");
-        const priv = keyData.slice(1);
-        if (!isValidPrivateKey(priv)) throw new Error("hd: invalid private key");
+        if (keyData[0] !== 0) throw err("invalid-private-key", "ExtendedKey.fromSerialized", `a private key must be padded with a leading 0x00, got 0x${keyData[0].toString(16).padStart(2, "0")}`);
+        const priv = copyOf(keyData, 1, 32);
+        if (!isValidPrivateKey(priv)) throw err("invalid-private-key", "ExtendedKey.fromSerialized", "not a valid secp256k1 scalar");
         return new _ExtendedKey(
           network,
           true,
@@ -6289,10 +6613,10 @@ zoo`.split("\n");
         );
       }
       if (keyData[0] !== 2 && keyData[0] !== 3) {
-        throw new Error("hd: bad public key prefix");
+        throw err("invalid-public-key", "ExtendedKey.fromSerialized", `a compressed public key must start with 0x02 or 0x03, got 0x${keyData[0].toString(16).padStart(2, "0")}`);
       }
       if (!isValidPublicKey(keyData)) {
-        throw new Error("hd: public key is not a valid curve point");
+        throw err("invalid-public-key", "ExtendedKey.fromSerialized", "public key is not a valid curve point");
       }
       return new _ExtendedKey(
         network,
@@ -6316,11 +6640,11 @@ zoo`.split("\n");
   function eq4(a, b) {
     return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
   }
-  function validateMnemonic2(mnemonic) {
-    return validateMnemonic(mnemonic, wordlist);
+  function validateMnemonic2(mnemonic, wordlist$1 = wordlist) {
+    return validateMnemonic(mnemonic, wordlist$1);
   }
-  function entropyToMnemonic2(entropy) {
-    return entropyToMnemonic(entropy, wordlist);
+  function entropyToMnemonic2(entropy, wordlist$1 = wordlist) {
+    return entropyToMnemonic(entropy, wordlist$1);
   }
   function mnemonicToSeed(mnemonic, passphrase = "") {
     return mnemonicToSeedSync(mnemonic, passphrase);
@@ -6711,8 +7035,8 @@ zoo`.split("\n");
     generateWallet,
     randomBytes: randomBytes2
   };
-  var g2 = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : void 0;
-  g2.DCR = DCR;
+  var g = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : void 0;
+  g.DCR = DCR;
 })();
 </script>
 <script>/* bip39-wordlist.js — official BIP39 English wordlist (2048 words).
