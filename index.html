@@ -369,10 +369,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/crypto.js
+  // node_modules/@noble/hashes/esm/crypto.js
   var crypto2 = typeof globalThis === "object" && "crypto" in globalThis ? globalThis.crypto : void 0;
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/utils.js
+  // node_modules/@noble/hashes/esm/utils.js
   /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   function isBytes(a) {
     return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
@@ -524,7 +524,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     throw new Error("crypto.getRandomValues must be defined");
   }
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/_md.js
+  // node_modules/@noble/hashes/esm/_md.js
   function setBigUint64(view, byteOffset, value, isLE) {
     if (typeof view.setBigUint64 === "function")
       return view.setBigUint64(byteOffset, value, isLE);
@@ -662,7 +662,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     327033209
   ]);
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/legacy.js
+  // node_modules/@noble/hashes/esm/legacy.js
   var Rho160 = /*  */ Uint8Array.from([
     7,
     4,
@@ -780,10 +780,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   };
   var ripemd160 = /*  */ createHasher(() => new RIPEMD160());
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/ripemd160.js
+  // node_modules/@noble/hashes/esm/ripemd160.js
   var ripemd1602 = ripemd160;
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/_u64.js
+  // node_modules/@noble/hashes/esm/_u64.js
   var U32_MASK64 = /*  */ BigInt(2 ** 32 - 1);
   var _32n = /*  */ BigInt(32);
   function fromBig(n, le = false) {
@@ -818,7 +818,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   var add5L = (Al, Bl, Cl, Dl, El) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0) + (Dl >>> 0) + (El >>> 0);
   var add5H = (low, Ah, Bh, Ch, Dh, Eh) => Ah + Bh + Ch + Dh + Eh + (low / 2 ** 32 | 0) | 0;
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/sha2.js
+  // node_modules/@noble/hashes/esm/sha2.js
   var SHA256_K = /*  */ Uint32Array.from([
     1116352408,
     1899447441,
@@ -1156,7 +1156,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   var sha256 = /*  */ createHasher(() => new SHA256());
   var sha512 = /*  */ createHasher(() => new SHA512());
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/hmac.js
+  // node_modules/@noble/hashes/esm/hmac.js
   var HMAC = class extends Hash {
     constructor(hash, _key) {
       super();
@@ -1224,7 +1224,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   var hmac = (hash, key, message) => new HMAC(hash, key).update(message).digest();
   hmac.create = (hash, key) => new HMAC(hash, key);
 
-  // ../dcr-ts/node_modules/@noble/curves/esm/utils.js
+  // node_modules/@noble/curves/esm/utils.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   var _0n = /*  */ BigInt(0);
   var _1n = /*  */ BigInt(1);
@@ -1378,7 +1378,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     };
   }
 
-  // ../dcr-ts/node_modules/@noble/curves/esm/abstract/modular.js
+  // node_modules/@noble/curves/esm/abstract/modular.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   var _0n2 = BigInt(0);
   var _1n2 = BigInt(1);
@@ -1724,7 +1724,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     return isLE ? numberToBytesLE(reduced, fieldLen) : numberToBytesBE(reduced, fieldLen);
   }
 
-  // ../dcr-ts/node_modules/@noble/curves/esm/abstract/curve.js
+  // node_modules/@noble/curves/esm/abstract/curve.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   var _0n3 = BigInt(0);
   var _1n3 = BigInt(1);
@@ -2003,7 +2003,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     return { CURVE, Fp, Fn };
   }
 
-  // ../dcr-ts/node_modules/@noble/curves/esm/abstract/weierstrass.js
+  // node_modules/@noble/curves/esm/abstract/weierstrass.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   var divNearest = (num, den) => (num + (num >= 0 ? den : -den) / _2n2) / den;
   function _splitEndoScalar(k, basis, n) {
@@ -3018,14 +3018,14 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     return _ecdsa_new_output_to_legacy(c, signs);
   }
 
-  // ../dcr-ts/node_modules/@noble/curves/esm/_shortw_utils.js
+  // node_modules/@noble/curves/esm/_shortw_utils.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   function createCurve(curveDef, defHash) {
     const create = (hash) => weierstrass({ ...curveDef, hash });
     return { ...create(defHash), create };
   }
 
-  // ../dcr-ts/node_modules/@noble/curves/esm/secp256k1.js
+  // node_modules/@noble/curves/esm/secp256k1.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   var secp256k1_CURVE = {
     p: BigInt("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"),
@@ -3069,10 +3069,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   var Fpk1 = Field(secp256k1_CURVE.p, { sqrt: sqrtMod });
   var secp256k1 = createCurve({ ...secp256k1_CURVE, Fp: Fpk1, lowS: true, endo: secp256k1_ENDO }, sha256);
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/sha512.js
+  // node_modules/@noble/hashes/esm/sha512.js
   var sha5122 = sha512;
 
-  // ../dcr-ts/node_modules/@noble/hashes/esm/pbkdf2.js
+  // node_modules/@noble/hashes/esm/pbkdf2.js
   function pbkdf2Init(hash, _password, _salt, _opts) {
     ahash(hash);
     const opts = checkOpts({ dkLen: 32, asyncTick: 10 }, _opts);
@@ -3117,7 +3117,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     return pbkdf2Output(PRF, PRFSalt, DK, prfW, u);
   }
 
-  // ../dcr-ts/node_modules/@scure/base/lib/esm/index.js
+  // node_modules/@scure/base/lib/esm/index.js
   /*! scure-base - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   function isBytes2(a) {
     return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
@@ -3401,7 +3401,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     padding
   };
 
-  // ../dcr-ts/node_modules/@scure/bip39/esm/index.js
+  // node_modules/@scure/bip39/esm/index.js
   /*! scure-bip39 - MIT License (c) 2022 Patricio Palladino, Paul Miller (paulmillr.com) */
   var isJapanese = (wordlist2) => wordlist2[0] === "\u3042\u3044\u3053\u304F\u3057\u3093";
   function nfkd(str) {
@@ -3456,7 +3456,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     return pbkdf2(sha512, normalize(mnemonic).nfkd, psalt(passphrase), { c: 2048, dkLen: 64 });
   }
 
-  // ../dcr-ts/node_modules/@scure/bip39/esm/wordlists/english.js
+  // node_modules/@scure/bip39/esm/wordlists/english.js
   var wordlist = `abandon
 ability
 able
@@ -5506,7 +5506,7 @@ zero
 zone
 zoo`.split("\n");
 
-  // ../dcr-ts/dist/index.js
+  // node_modules/dcr-ts/dist/index.js
   var BRAND = /*  */ Symbol.for("dcr-ts.DcrError");
   var DcrError = class extends Error {
     constructor(code, message, options) {
@@ -5519,6 +5519,48 @@ zoo`.split("\n");
   };
   function err(code, who, message) {
     return new DcrError(code, `${who}: ${message}`);
+  }
+  function copyOf(src, off, n) {
+    if (!Number.isInteger(off) || !Number.isInteger(n) || off < 0 || n < 0) {
+      throw err(
+        "not-an-integer",
+        "copyOf",
+        `offset and length must be non-negative integers, got ${shown(off)}, ${shown(n)}`
+      );
+    }
+    if (off + n > src.length) {
+      throw err(
+        "out-of-range",
+        "copyOf",
+        `reading ${n} bytes at ${off} overruns a ${src.length}-byte source`
+      );
+    }
+    const out = new Uint8Array(n);
+    out.set(src.subarray(off, off + n));
+    return out;
+  }
+  function isBytes3(v) {
+    return Object.prototype.toString.call(v) === "[object Uint8Array]";
+  }
+  function typeName(v) {
+    return Object.prototype.toString.call(v).slice(8, -1).toLowerCase();
+  }
+  var MAX_SHOWN_LENGTH = 32;
+  function shown(v) {
+    if (typeof v === "string") {
+      const head = v.length > MAX_SHOWN_LENGTH ? v.slice(0, MAX_SHOWN_LENGTH) : v;
+      let out = "";
+      for (const ch of head) {
+        const c = ch.codePointAt(0);
+        out += c < 32 || c === 127 ? `\\u${c.toString(16).padStart(4, "0")}` : ch;
+      }
+      const clipped = v.length > MAX_SHOWN_LENGTH ? `\u2026 (${v.length} characters)` : "";
+      return `"${out}"${clipped}`;
+    }
+    if (typeof v === "number" || typeof v === "bigint" || typeof v === "boolean" || v === null || v === void 0) {
+      return String(v);
+    }
+    return typeName(v);
   }
   var IV = Uint32Array.of(
     1779033703,
@@ -5948,6 +5990,9 @@ zoo`.split("\n");
     }
     update(data) {
       if (this.finished) throw err("invalid-argument", "Blake256", "update after digest");
+      if (!isBytes3(data)) {
+        throw err("invalid-argument", "Blake256", `data must be a Uint8Array, got ${typeName(data)}`);
+      }
       let i = 0;
       const n = data.length;
       this.total += n;
@@ -6061,7 +6106,7 @@ zoo`.split("\n");
     for (let i = 0; i < str.length; i++) {
       const code = str.charCodeAt(i);
       const val = code < 128 ? INDEX[code] : 255;
-      if (val === 255) throw err("invalid-base58", "base58Decode", `invalid character '${str[i]}' at index ${i}`);
+      if (val === 255) throw err("invalid-base58", "base58Decode", `invalid character ${shown(str[i])} at index ${i}`);
       num = num * BASE + BigInt(val);
     }
     const tail = [];
@@ -6091,28 +6136,6 @@ zoo`.split("\n");
       if (checksum2[i] !== expected[i]) throw err("bad-checksum", "base58check", "checksum does not match");
     }
     return data.slice();
-  }
-  function copyOf(src, off, n) {
-    if (!Number.isInteger(off) || !Number.isInteger(n) || off < 0 || n < 0) {
-      throw err(
-        "not-an-integer",
-        "copyOf",
-        `offset and length must be non-negative integers, got ${off}, ${n}`
-      );
-    }
-    if (off + n > src.length) {
-      throw err(
-        "out-of-range",
-        "copyOf",
-        `reading ${n} bytes at ${off} overruns a ${src.length}-byte source`
-      );
-    }
-    const out = new Uint8Array(n);
-    out.set(src.subarray(off, off + n));
-    return out;
-  }
-  function isBytes3(v) {
-    return Object.prototype.toString.call(v) === "[object Uint8Array]";
   }
   var mainnet = {
     name: "mainnet",
@@ -6171,9 +6194,6 @@ zoo`.split("\n");
     slip44: 1
   };
   var networks = { mainnet, testnet3, simnet, regnet };
-  function typeName(v) {
-    return Object.prototype.toString.call(v).slice(8, -1).toLowerCase();
-  }
   var CURVE_ORDER = secp256k1.CURVE.n;
   var ED25519_CURVE_ORDER = 2n ** 252n + 27742317777372353535851937790883648493n;
   function isValidPrivateKey(key) {
@@ -6205,6 +6225,9 @@ zoo`.split("\n");
     }
   }
   function assertPubKey(key, who) {
+    if (!isBytes3(key)) {
+      throw err("invalid-argument", who, `public key must be a Uint8Array, got ${typeName(key)}`);
+    }
     if (key.length !== 33 && key.length !== 65) {
       throw err(
         "invalid-public-key",
@@ -6331,7 +6354,7 @@ zoo`.split("\n");
   var MAX_EXTENDED_KEY_LENGTH = maxBase58Length(SERIALIZED_LENGTH + 4);
   function hardened(index) {
     if (!Number.isInteger(index) || index < 0 || index >= HARDENED_OFFSET) {
-      throw err(Number.isInteger(index) ? "out-of-range" : "not-an-integer", "hardened", `index must be an integer in 0..2^31-1, got ${index}`);
+      throw err(Number.isInteger(index) ? "out-of-range" : "not-an-integer", "hardened", `index must be an integer in 0..2^31-1, got ${shown(index)}`);
     }
     return index + HARDENED_OFFSET >>> 0;
   }
@@ -6468,7 +6491,7 @@ zoo`.split("\n");
     }
     deriveInner(index, strictBip32) {
       if (this.depth >= 255) throw err("max-depth", "ExtendedKey.derive", "cannot derive beyond depth 255, which is all a single byte can serialize");
-      if (!Number.isInteger(index)) throw err("not-an-integer", "ExtendedKey.derive", `index must be an integer, got ${index}`);
+      if (!Number.isInteger(index)) throw err("not-an-integer", "ExtendedKey.derive", `index must be an integer, got ${shown(index)}`);
       if (index < 0 || index > 4294967295) throw err("out-of-range", "ExtendedKey.derive", `index ${index} is outside 0..2^32-1`);
       const idx = index >>> 0;
       const isHardened = idx >= HARDENED_OFFSET;
@@ -6546,7 +6569,7 @@ zoo`.split("\n");
         const isH = raw.endsWith("'") || raw.endsWith("h") || raw.endsWith("H");
         const numStr = isH ? raw.slice(0, -1) : raw;
         if (!/^\d+$/.test(numStr)) {
-          throw err("invalid-path", "ExtendedKey.derivePath", `invalid path element '${raw}'`);
+          throw err("invalid-path", "ExtendedKey.derivePath", `invalid path element ${shown(raw)}`);
         }
         const n = Number(numStr);
         if (n >= HARDENED_OFFSET) {
@@ -6601,6 +6624,13 @@ zoo`.split("\n");
     }
     /** Parse an extended key string, validating the checksum and version. */
     static fromString(str) {
+      if (typeof str !== "string") {
+        throw err(
+          "invalid-argument",
+          "ExtendedKey.fromString",
+          `extended key must be a string, got ${typeName(str)}`
+        );
+      }
       if (str.length > MAX_EXTENDED_KEY_LENGTH) {
         throw err(
           "input-too-long",
@@ -6711,288 +6741,6 @@ zoo`.split("\n");
     return mnemonicToSeedSync(mnemonic, passphrase);
   }
 
-  // node_modules/@noble/hashes/esm/utils.js
-  /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
-  function isBytes4(a) {
-    return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
-  }
-  function abytes2(b, ...lengths) {
-    if (!isBytes4(b))
-      throw new Error("Uint8Array expected");
-    if (lengths.length > 0 && !lengths.includes(b.length))
-      throw new Error("Uint8Array expected of length " + lengths + ", got length=" + b.length);
-  }
-  function aexists2(instance, checkFinished = true) {
-    if (instance.destroyed)
-      throw new Error("Hash instance has been destroyed");
-    if (checkFinished && instance.finished)
-      throw new Error("Hash#digest() has already been called");
-  }
-  function aoutput2(out, instance) {
-    abytes2(out);
-    const min = instance.outputLen;
-    if (out.length < min) {
-      throw new Error("digestInto() expects output buffer of length at least " + min);
-    }
-  }
-  function clean2(...arrays) {
-    for (let i = 0; i < arrays.length; i++) {
-      arrays[i].fill(0);
-    }
-  }
-  function createView2(arr) {
-    return new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
-  }
-  function rotl2(word, shift) {
-    return word << shift | word >>> 32 - shift >>> 0;
-  }
-  function utf8ToBytes2(str) {
-    if (typeof str !== "string")
-      throw new Error("string expected");
-    return new Uint8Array(new TextEncoder().encode(str));
-  }
-  function toBytes2(data) {
-    if (typeof data === "string")
-      data = utf8ToBytes2(data);
-    abytes2(data);
-    return data;
-  }
-  var Hash2 = class {
-  };
-  function createHasher2(hashCons) {
-    const hashC = (msg) => hashCons().update(toBytes2(msg)).digest();
-    const tmp = hashCons();
-    hashC.outputLen = tmp.outputLen;
-    hashC.blockLen = tmp.blockLen;
-    hashC.create = () => hashCons();
-    return hashC;
-  }
-
-  // node_modules/@noble/hashes/esm/_md.js
-  function setBigUint642(view, byteOffset, value, isLE) {
-    if (typeof view.setBigUint64 === "function")
-      return view.setBigUint64(byteOffset, value, isLE);
-    const _32n2 = BigInt(32);
-    const _u32_max = BigInt(4294967295);
-    const wh = Number(value >> _32n2 & _u32_max);
-    const wl = Number(value & _u32_max);
-    const h = isLE ? 4 : 0;
-    const l = isLE ? 0 : 4;
-    view.setUint32(byteOffset + h, wh, isLE);
-    view.setUint32(byteOffset + l, wl, isLE);
-  }
-  var HashMD2 = class extends Hash2 {
-    constructor(blockLen, outputLen, padOffset, isLE) {
-      super();
-      this.finished = false;
-      this.length = 0;
-      this.pos = 0;
-      this.destroyed = false;
-      this.blockLen = blockLen;
-      this.outputLen = outputLen;
-      this.padOffset = padOffset;
-      this.isLE = isLE;
-      this.buffer = new Uint8Array(blockLen);
-      this.view = createView2(this.buffer);
-    }
-    update(data) {
-      aexists2(this);
-      data = toBytes2(data);
-      abytes2(data);
-      const { view, buffer, blockLen } = this;
-      const len = data.length;
-      for (let pos = 0; pos < len; ) {
-        const take = Math.min(blockLen - this.pos, len - pos);
-        if (take === blockLen) {
-          const dataView = createView2(data);
-          for (; blockLen <= len - pos; pos += blockLen)
-            this.process(dataView, pos);
-          continue;
-        }
-        buffer.set(data.subarray(pos, pos + take), this.pos);
-        this.pos += take;
-        pos += take;
-        if (this.pos === blockLen) {
-          this.process(view, 0);
-          this.pos = 0;
-        }
-      }
-      this.length += data.length;
-      this.roundClean();
-      return this;
-    }
-    digestInto(out) {
-      aexists2(this);
-      aoutput2(out, this);
-      this.finished = true;
-      const { buffer, view, blockLen, isLE } = this;
-      let { pos } = this;
-      buffer[pos++] = 128;
-      clean2(this.buffer.subarray(pos));
-      if (this.padOffset > blockLen - pos) {
-        this.process(view, 0);
-        pos = 0;
-      }
-      for (let i = pos; i < blockLen; i++)
-        buffer[i] = 0;
-      setBigUint642(view, blockLen - 8, BigInt(this.length * 8), isLE);
-      this.process(view, 0);
-      const oview = createView2(out);
-      const len = this.outputLen;
-      if (len % 4)
-        throw new Error("_sha2: outputLen should be aligned to 32bit");
-      const outLen = len / 4;
-      const state = this.get();
-      if (outLen > state.length)
-        throw new Error("_sha2: outputLen bigger than state");
-      for (let i = 0; i < outLen; i++)
-        oview.setUint32(4 * i, state[i], isLE);
-    }
-    digest() {
-      const { buffer, outputLen } = this;
-      this.digestInto(buffer);
-      const res = buffer.slice(0, outputLen);
-      this.destroy();
-      return res;
-    }
-    _cloneInto(to) {
-      to || (to = new this.constructor());
-      to.set(...this.get());
-      const { blockLen, buffer, length, finished, destroyed, pos } = this;
-      to.destroyed = destroyed;
-      to.finished = finished;
-      to.length = length;
-      to.pos = pos;
-      if (length % blockLen)
-        to.buffer.set(buffer);
-      return to;
-    }
-    clone() {
-      return this._cloneInto();
-    }
-  };
-
-  // node_modules/@noble/hashes/esm/legacy.js
-  var Rho1602 = /*  */ Uint8Array.from([
-    7,
-    4,
-    13,
-    1,
-    10,
-    6,
-    15,
-    3,
-    12,
-    0,
-    9,
-    5,
-    2,
-    14,
-    11,
-    8
-  ]);
-  var Id1602 = /*  */ (() => Uint8Array.from(new Array(16).fill(0).map((_, i) => i)))();
-  var Pi1602 = /*  */ (() => Id1602.map((i) => (9 * i + 5) % 16))();
-  var idxLR2 = /*  */ (() => {
-    const L = [Id1602];
-    const R = [Pi1602];
-    const res = [L, R];
-    for (let i = 0; i < 4; i++)
-      for (let j of res)
-        j.push(j[i].map((k) => Rho1602[k]));
-    return res;
-  })();
-  var idxL2 = /*  */ (() => idxLR2[0])();
-  var idxR2 = /*  */ (() => idxLR2[1])();
-  var shifts1602 = /*  */ [
-    [11, 14, 15, 12, 5, 8, 7, 9, 11, 13, 14, 15, 6, 7, 9, 8],
-    [12, 13, 11, 15, 6, 9, 9, 7, 12, 15, 11, 13, 7, 8, 7, 7],
-    [13, 15, 14, 11, 7, 7, 6, 8, 13, 14, 13, 12, 5, 5, 6, 9],
-    [14, 11, 12, 14, 8, 6, 5, 5, 15, 12, 15, 14, 9, 9, 8, 6],
-    [15, 12, 13, 13, 9, 5, 8, 6, 14, 11, 12, 11, 8, 6, 5, 5]
-  ].map((i) => Uint8Array.from(i));
-  var shiftsL1602 = /*  */ idxL2.map((idx, i) => idx.map((j) => shifts1602[i][j]));
-  var shiftsR1602 = /*  */ idxR2.map((idx, i) => idx.map((j) => shifts1602[i][j]));
-  var Kl1602 = /*  */ Uint32Array.from([
-    0,
-    1518500249,
-    1859775393,
-    2400959708,
-    2840853838
-  ]);
-  var Kr1602 = /*  */ Uint32Array.from([
-    1352829926,
-    1548603684,
-    1836072691,
-    2053994217,
-    0
-  ]);
-  function ripemd_f2(group, x, y, z) {
-    if (group === 0)
-      return x ^ y ^ z;
-    if (group === 1)
-      return x & y | ~x & z;
-    if (group === 2)
-      return (x | ~y) ^ z;
-    if (group === 3)
-      return x & z | y & ~z;
-    return x ^ (y | ~z);
-  }
-  var BUF_1602 = /*  */ new Uint32Array(16);
-  var RIPEMD1602 = class extends HashMD2 {
-    constructor() {
-      super(64, 20, 8, true);
-      this.h0 = 1732584193 | 0;
-      this.h1 = 4023233417 | 0;
-      this.h2 = 2562383102 | 0;
-      this.h3 = 271733878 | 0;
-      this.h4 = 3285377520 | 0;
-    }
-    get() {
-      const { h0, h1, h2, h3, h4 } = this;
-      return [h0, h1, h2, h3, h4];
-    }
-    set(h0, h1, h2, h3, h4) {
-      this.h0 = h0 | 0;
-      this.h1 = h1 | 0;
-      this.h2 = h2 | 0;
-      this.h3 = h3 | 0;
-      this.h4 = h4 | 0;
-    }
-    process(view, offset) {
-      for (let i = 0; i < 16; i++, offset += 4)
-        BUF_1602[i] = view.getUint32(offset, true);
-      let al = this.h0 | 0, ar = al, bl = this.h1 | 0, br = bl, cl = this.h2 | 0, cr = cl, dl = this.h3 | 0, dr = dl, el = this.h4 | 0, er = el;
-      for (let group = 0; group < 5; group++) {
-        const rGroup = 4 - group;
-        const hbl = Kl1602[group], hbr = Kr1602[group];
-        const rl = idxL2[group], rr = idxR2[group];
-        const sl = shiftsL1602[group], sr = shiftsR1602[group];
-        for (let i = 0; i < 16; i++) {
-          const tl = rotl2(al + ripemd_f2(group, bl, cl, dl) + BUF_1602[rl[i]] + hbl, sl[i]) + el | 0;
-          al = el, el = dl, dl = rotl2(cl, 10) | 0, cl = bl, bl = tl;
-        }
-        for (let i = 0; i < 16; i++) {
-          const tr = rotl2(ar + ripemd_f2(rGroup, br, cr, dr) + BUF_1602[rr[i]] + hbr, sr[i]) + er | 0;
-          ar = er, er = dr, dr = rotl2(cr, 10) | 0, cr = br, br = tr;
-        }
-      }
-      this.set(this.h1 + cl + dr | 0, this.h2 + dl + er | 0, this.h3 + el + ar | 0, this.h4 + al + br | 0, this.h0 + bl + cr | 0);
-    }
-    roundClean() {
-      clean2(BUF_1602);
-    }
-    destroy() {
-      this.destroyed = true;
-      clean2(this.buffer);
-      this.set(0, 0, 0, 0, 0);
-    }
-  };
-  var ripemd1603 = /*  */ createHasher2(() => new RIPEMD1602());
-
-  // node_modules/@noble/hashes/esm/ripemd160.js
-  var ripemd1604 = ripemd1603;
-
   // src/dcr-engine.mjs
   function hexToBytes2(h) {
     if (h.length % 2) h = "0" + h;
@@ -7075,7 +6823,7 @@ zoo`.split("\n");
     bytesToHex: bytesToHex2,
     blake256,
     blake256d,
-    ripemd160: ripemd1604,
+    ripemd160: ripemd1602,
     base58encode,
     base58checkDcr,
     pubFromPriv,
