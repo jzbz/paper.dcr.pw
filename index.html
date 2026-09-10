@@ -5521,6 +5521,9 @@ zoo`.split("\n");
     return new DcrError(code, `${who}: ${message}`);
   }
   function copyOf(src, off, n) {
+    if (!isBytes3(src)) {
+      throw err("invalid-argument", "copyOf", `source must be a Uint8Array, got ${typeName(src)}`);
+    }
     if (!Number.isInteger(off) || !Number.isInteger(n) || off < 0 || n < 0) {
       throw err(
         "not-an-integer",
@@ -6084,6 +6087,9 @@ zoo`.split("\n");
     INDEX[ALPHABET.charCodeAt(i)] = i;
   }
   function base58Encode(bytes) {
+    if (!isBytes3(bytes)) {
+      throw err("invalid-argument", "base58Encode", `input must be a Uint8Array, got ${typeName(bytes)}`);
+    }
     let zeros = 0;
     while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
     let num = 0n;
@@ -6217,6 +6223,7 @@ zoo`.split("\n");
     return secp256k1.getPublicKey(privateKey, compressed);
   }
   function isValidPublicKey(key) {
+    if (!isBytes3(key)) return false;
     try {
       secp256k1.ProjectivePoint.fromHex(key);
       return true;
@@ -6306,7 +6313,13 @@ zoo`.split("\n");
     data.set(payload, 2);
     return checkEncode(data);
   }
+  function assertHash20(hash, who) {
+    if (!isBytes3(hash)) {
+      throw err("invalid-argument", who, `hash must be a Uint8Array, got ${typeName(hash)}`);
+    }
+  }
   function pubKeyHashAddress(hash, network) {
+    assertHash20(hash, "pubKeyHashAddress");
     if (hash.length !== 20) throw err("bad-length", "pubKeyHashAddress", `hash must be 20 bytes, got ${hash.length}`);
     return encode(network.pubKeyHashAddrId, hash);
   }
@@ -6334,7 +6347,7 @@ zoo`.split("\n");
     if (!isBytes3(privateKey)) throw err("invalid-argument", "encodeWif", "private key must be a Uint8Array");
     if (privateKey.length !== 32) throw err("bad-length", "encodeWif", `private key must be 32 bytes, got ${privateKey.length}`);
     if (!Number.isInteger(signatureType) || SignatureType[signatureType] === void 0) {
-      throw err("unsupported-signature-type", "encodeWif", `unknown signature type ${signatureType}`);
+      throw err("unsupported-signature-type", "encodeWif", `unknown signature type ${shown(signatureType)}`);
     }
     assertWifScalar(privateKey, signatureType, "encodeWif");
     const payload = new Uint8Array(3 + 32);
@@ -6402,6 +6415,9 @@ zoo`.split("\n");
     }
     /** Derive a master key from a BIP32 seed (16–64 bytes). */
     static fromSeed(seed, network) {
+      if (!isBytes3(seed)) {
+        throw err("invalid-argument", "ExtendedKey.fromSeed", `seed must be a Uint8Array, got ${typeName(seed)}`);
+      }
       if (seed.length < 16 || seed.length > 64) {
         throw err("out-of-range", "ExtendedKey.fromSeed", `seed must be 16..64 bytes, got ${seed.length}`);
       }
@@ -6562,6 +6578,9 @@ zoo`.split("\n");
       return this.derivePathInner(path, true);
     }
     derivePathInner(path, strictBip32) {
+      if (typeof path !== "string") {
+        throw err("invalid-path", "ExtendedKey.derivePath", `path must be a string, got ${typeName(path)}`);
+      }
       const parts = path.trim().split("/");
       if (parts[0] === "m" || parts[0] === "M") parts.shift();
       let key = this;
@@ -6650,6 +6669,9 @@ zoo`.split("\n");
      * key it just parsed. See {@link copyOf}.
      */
     static fromSerialized(data) {
+      if (!isBytes3(data)) {
+        throw err("invalid-argument", "ExtendedKey.fromSerialized", `serialization must be a Uint8Array, got ${typeName(data)}`);
+      }
       if (data.length !== SERIALIZED_LENGTH) throw err("bad-length", "ExtendedKey.fromSerialized", `expected ${SERIALIZED_LENGTH} bytes, got ${data.length}`);
       const version = [data[0], data[1], data[2], data[3]];
       const depth = data[4];
@@ -6709,12 +6731,22 @@ zoo`.split("\n");
       throw err("invalid-argument", who, `mnemonic must be a string, got ${typeof mnemonic}`);
     }
   }
+  function assertPassphrase(passphrase, who) {
+    if (typeof passphrase !== "string") {
+      throw err("invalid-argument", who, `passphrase must be a string, got ${typeName(passphrase)}`);
+    }
+  }
   function assertWordlist(wordlist2, who) {
+    if (!Array.isArray(wordlist2)) {
+      throw err("invalid-argument", who, `wordlist must be an array of 2048 words, got ${typeName(wordlist2)}`);
+    }
     if (wordlist2.length !== 2048) {
       throw err("invalid-argument", who, `wordlist must hold 2048 words, got ${wordlist2.length}`);
     }
   }
   function validateMnemonic2(mnemonic, wordlist$1 = wordlist) {
+    assertWordlist(wordlist$1, "validateMnemonic");
+    if (typeof mnemonic !== "string") return false;
     return validateMnemonic(mnemonic, wordlist$1);
   }
   function entropyToMnemonic2(entropy, wordlist$1 = wordlist) {
@@ -6730,6 +6762,7 @@ zoo`.split("\n");
   }
   function mnemonicToSeed(mnemonic, passphrase = "") {
     assertMnemonicString(mnemonic, "mnemonicToSeed");
+    assertPassphrase(passphrase, "mnemonicToSeed");
     const words = mnemonic.normalize("NFKD").split(" ").length;
     if (!MNEMONIC_WORD_COUNTS.includes(words)) {
       throw err(

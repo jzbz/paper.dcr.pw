@@ -11,7 +11,7 @@
   },
   "devDependencies": {
     "@noble/hashes": "^1.8.0",
-    "dcr-ts": "^0.2.1",
+    "dcr-ts": "^0.3.0",
     "esbuild": "^0.28.1"
   }
 }
