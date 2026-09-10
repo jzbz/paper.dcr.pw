@@ -12,7 +12,6 @@ global.window = {};
 eval(fs.readFileSync(src('engine.bundle.js'), 'utf8')); // dcr-ts-backed engine
 const DCR = global.window.DCR;
 eval(fs.readFileSync(src('bip39-wordlist.js'), 'utf8'));
-DCR.setWordlist(global.window.BIP39_WORDLIST);
 const WL = global.window.BIP39_WORDLIST;
 const WLIDX = {}; WL.forEach((w,i)=>WLIDX[w]=i);
 

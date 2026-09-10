@@ -676,6 +676,18 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     }
   }
 
+  // Wipe every field renderWallet fills, so a failed generate cannot leave a
+  // stale wallet on screen looking like a fresh one.
+  function clearWallet(){
+    setRevealed(false);
+    var blank = ['addr','wif','path','seedTitle','seedNote','meta','seedHex','ps_addr','ps_wif','ps_fmt'];
+    for (var i=0;i<blank.length;i++){ var el = $(blank[i]); if (el) el.textContent = '—'; }
+    var empty = ['qrAddr','qrWif','seedGrid','ps_words','ps_qraddr','ps_qrwif'];
+    for (var j=0;j<empty.length;j++){ var e2 = $(empty[j]); if (e2) e2.innerHTML = ''; }
+    var bday = $('bdayLine'); if (bday) bday.style.display = 'none';
+    var pass = $('ps_passline'); if (pass) pass.style.display = 'none';
+  }
+
   function renderWallet(){
     var w = state.wallet; if (!w) return;
     $('addr').textContent = w.address;
@@ -720,7 +732,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
 
   async function generate(){
     if (state.generating) return;
-    if (!window.DCR || !window.DCR.hasWordlist || !window.DCR.hasWordlist() || !window.QR){
+    if (!enginesLoaded()){
       // engines not ready yet; retry shortly
       return setTimeout(generate, 60);
     }
@@ -743,6 +755,14 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       renderWallet();
     } catch(e){
       console.error('generate failed', e);
+      // Leaving the previous wallet on screen is the dangerous outcome here: the
+      // button appears dead, and pressing it again looks like it did nothing, so
+      // the same keys can be printed twice in the belief they are two different
+      // wallets. A key generator that cannot generate has no safe degraded mode,
+      // so clear the card and stop, the same way a failed self-test does.
+      state.wallet = null;
+      clearWallet();
+      fatal('Key generation failed — ' + ((e && (e.userMessage || e.message)) || 'unknown error') + '.');
     } finally {
       state.generating = false;
       app.classList.remove('gen');
@@ -876,8 +896,9 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
 
   function enginesLoaded(){
     var D = window.DCR;
-    return !!(D && D.hasWordlist && D.hasWordlist() && D.generateNativeWallet && D.generate15Word
-      && window.QR && window.PGP_WORDLIST && window.crypto && window.crypto.subtle);
+    return !!(D && D.generateWallet && D.generateNativeWallet && D.generate15Word
+      && window.QR && window.PGP_WORDLIST && window.BIP39_WORDLIST
+      && window.crypto && window.crypto.subtle);
   }
   function waitEngines(timeoutMs){
     return new Promise(function(resolve, reject){

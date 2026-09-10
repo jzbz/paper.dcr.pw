@@ -15,7 +15,6 @@ const DCR = global.window.DCR;
 // register BIP39 wordlist
 const wlSrc = fs.readFileSync(src('bip39-wordlist.js'), 'utf8');
 eval(wlSrc); // sets window.BIP39_WORDLIST and registers
-DCR.setWordlist(global.window.BIP39_WORDLIST);
 
 const PGP = JSON.parse(fs.readFileSync(src('pgp-words.json'), 'utf8'));
 const pgpIndex = {}; PGP.forEach((w, i) => pgpIndex[w.toLowerCase()] = i);
@@ -165,6 +164,29 @@ function serialize(node, priv){
   const trezorMn = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
   const seed = await DCR.mnemonicToSeed(trezorMn, 'TREZOR');
   check('trezor seed', hex(seed), 'c55257c360c07c72029aebc1b53c05ed0362ada38ead3e3e9efa3708e53495531f09a6987599d18264c1e1c92f2cf141630c7a3c4ab7c81b2f001698e7463b04');
+
+  // ---------- the app's BIP39 list IS the list derivation uses ----------
+  // src/bip39-wordlist.js is the sole source of words for the printed 15-word
+  // Bison phrase, while BIP39 seeds are derived by dcr-ts through @scure's own
+  // copy. Nothing in the code ties the two together, so a single edited or
+  // reordered entry would print a phrase that does not restore the wallet
+  // beside it — silently, since every other check would still pass.
+  //
+  // The first 11 bits of the entropy select the first word, so walking i over
+  // 0..2047 and reading word 0 back names every entry in @scure's list exactly
+  // once, and compares it against the shipped one.
+  console.log('\n== the shipped BIP39 wordlist matches the one dcr-ts derives with ==');
+  const shipped = global.window.BIP39_WORDLIST;
+  check('shipped list is 2048 words', '' + shipped.length, '2048');
+  let mismatches = [];
+  for (let i = 0; i < 2048; i++) {
+    const e = new Uint8Array(16);
+    e[0] = i >> 3;
+    e[1] = (i & 7) << 5;
+    const first = (await DCR.entropyToMnemonic(e)).split(' ')[0];
+    if (first !== shipped[i]) mismatches.push(`${i}: derived "${first}" vs shipped "${shipped[i]}"`);
+  }
+  check('all 2048 indices agree', mismatches.length ? mismatches.slice(0, 3).join('; ') : 'none', 'none');
 
   console.log(`\n=== ${pass} passed, ${fail} failed ===`);
   process.exit(fail ? 1 : 0);

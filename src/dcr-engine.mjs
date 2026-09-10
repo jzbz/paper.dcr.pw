@@ -19,11 +19,9 @@
  */
 import {
   blake256,
-  hash256,
   base58Encode,
   checkEncode,
   publicKeyFromPrivate,
-  isValidPrivateKey,
   addressFromPubKey,
   encodeWif,
   SignatureType,
@@ -48,9 +46,6 @@ function bytesToHex(b) {
   return s;
 }
 
-// ---------- hashing ----------
-const blake256d = (data) => hash256(data); // double BLAKE-256
-
 // ---------- base58 / base58check (double-BLAKE-256 checksum: addresses, dprv) ----------
 const base58encode = (bytes) => base58Encode(bytes);
 const base58checkDcr = (payload) => checkEncode(payload);
@@ -59,10 +54,6 @@ const base58checkDcr = (payload) => checkEncode(payload);
 const pubFromPriv = (priv32) => publicKeyFromPrivate(priv32); // 33-byte compressed
 
 // ---------- BIP32 (returns the old {key, chain} node shape) ----------
-async function masterFromSeed(seed) {
-  const k = ExtendedKey.fromSeed(seed, mainnet);
-  return { key: k.privateKeyBytes(), chain: k.chainCode.slice() };
-}
 async function derivePath(seed, indices) {
   let k = ExtendedKey.fromSeed(seed, mainnet);
   for (const i of indices) k = k.derive(i >>> 0);
@@ -70,13 +61,15 @@ async function derivePath(seed, indices) {
 }
 
 // ---------- BIP39 (dcr-ts bundles the English wordlist via @scure/bip39) ----------
-let WORDLIST = null; // kept only so setWordlist/hasWordlist stay no-op compatible
-function setWordlist(arr) {
-  WORDLIST = arr;
-}
-function hasWordlist() {
-  return true; // @scure/bip39 always has the canonical English wordlist
-}
+//
+// There is deliberately no setWordlist/hasWordlist here. They used to exist as
+// no-ops for compatibility with the hand-rolled engine this replaced — one
+// stored an array nothing read, the other returned a constant `true` — which
+// made a readiness gate that could not fail and an injection point that could
+// not inject. @scure/bip39 carries the canonical English list and derivation
+// consults that one, so the list the app ships (src/bip39-wordlist.js) is only
+// used for the printed 15-word Bison phrase. test/verify.js pins the two
+// together word for word; nothing else can.
 async function entropyToMnemonic(entropy) {
   return dcrEntropyToMnemonic(entropy);
 }
@@ -90,7 +83,6 @@ async function validateMnemonic(mnemonic) {
 }
 
 // ---------- Decred address / WIF ----------
-const hash160 = (pub) => ripemd160(blake256(pub));
 const addressFromPub = (pubCompressed) => addressFromPubKey(pubCompressed, mainnet);
 // WIF checksum is single-BLAKE-256 (dcrd's chainhash.HashB), via dcr-ts encodeWif.
 const wifFromPriv = (priv32) => encodeWif(priv32, mainnet, SignatureType.Ecdsa);
@@ -100,13 +92,6 @@ function randomBytes(n) {
   const b = new Uint8Array(n);
   crypto.getRandomValues(b);
   return b;
-}
-function privFromRandom() {
-  let k;
-  do {
-    k = randomBytes(32);
-  } while (!isValidPrivateKey(k));
-  return k;
 }
 async function walletFromMnemonic(mnemonic, passphrase = "", index = 0) {
   const seed = await mnemonicToSeed(mnemonic, passphrase);
@@ -131,14 +116,14 @@ async function generateWallet(strength = 256, passphrase = "") {
 
 const DCR = {
   // primitives (exposed for testing)
-  hexToBytes, bytesToHex, blake256, blake256d, ripemd160, base58encode, base58checkDcr,
-  pubFromPriv, masterFromSeed, derivePath,
+  hexToBytes, bytesToHex, blake256, ripemd160, base58encode, base58checkDcr,
+  pubFromPriv, derivePath,
   // bip39
-  setWordlist, hasWordlist, entropyToMnemonic, mnemonicToSeed, validateMnemonic,
+  entropyToMnemonic, mnemonicToSeed, validateMnemonic,
   // decred
   addressFromPub, wifFromPriv,
   // high level
-  privFromRandom, walletFromMnemonic, generateWallet, randomBytes,
+  walletFromMnemonic, generateWallet, randomBytes,
 };
 
 const g =
