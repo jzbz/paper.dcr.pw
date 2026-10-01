@@ -31,7 +31,13 @@ import {
   mnemonicToSeed as dcrMnemonicToSeed,
   validateMnemonic as dcrValidateMnemonic,
 } from "dcr-ts";
-import { ripemd160 } from "@noble/hashes/ripemd160";
+import { ripemd160 } from "@noble/hashes/legacy.js";
+
+// @noble/hashes 2.x keeps its license banner in its TypeScript sources only, not
+// in the JavaScript esbuild bundles, so it is restated here for the inlined copy
+// (bundle.mjs keeps legal comments). noble-curves and scure-bip39 still carry
+// their own.
+/*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
 
 // ---------- byte helpers (identical to the old engine) ----------
 function hexToBytes(h) {

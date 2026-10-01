@@ -10,8 +10,8 @@
     "test": "node test/verify.js && node test/verify15.js"
   },
   "devDependencies": {
-    "@noble/hashes": "^1.8.0",
-    "dcr-ts": "^0.3.0",
+    "@noble/hashes": "^2.4.0",
+    "dcr-ts": "^0.4.0",
     "esbuild": "^0.28.1"
   }
 }

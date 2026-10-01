@@ -1,9 +1,10 @@
 # Decred Paper Wallet — `index.html`
 
-A **single, self-contained HTML file** — 313 KB, one file, nothing else — that generates
+A **single, self-contained HTML file** — 326 KB, one file, nothing else — that generates
 real, spendable Decred (DCR) mainnet paper wallets **entirely offline**. Open it in any
 modern browser — no server, no network, no runtime dependencies (everything is inlined).
-Save it to disk and run it air-gapped.
+Save it to disk and run it air-gapped. It needs Chrome or Edge 93, Firefox 92 or Safari
+15.4 or newer; an older browser gets an error instead of keys.
 
 > ⚠️ For real funds: save this page, disconnect from the network, generate, **print**
 > (don't screenshot), and store the paper offline. Send a small test deposit and confirm
@@ -72,7 +73,7 @@ consensus-critical byte format is verified byte-for-byte against
 from the audited [`@noble`](https://github.com/paulmillr/noble-curves) /
 [`@scure`](https://github.com/paulmillr/scure-bip39) packages that dcr-ts builds on. All
 of it is bundled by esbuild into the single offline `index.html`; nothing is fetched at
-runtime. dcr-ts comes from npm as [`dcr-ts@^0.2.1`](https://www.npmjs.com/package/dcr-ts),
+runtime. dcr-ts comes from npm as [`dcr-ts@^0.4.0`](https://www.npmjs.com/package/dcr-ts),
 pinned by hash in `package-lock.json`; it is published from CI on a signed tag, so the
 tarball carries an npm provenance attestation — `npm audit signatures` checks both the
 registry signature and the attestation. (Earlier versions hand-rolled this engine —
@@ -104,7 +105,7 @@ layer (`src/template.html`), built on those dcr-ts primitives. **QR codes** come
 Project Nayuki's public-domain generator → crisp SVG.
 
 ### Verification — checked against canonical published vectors
-- `test/verify.js` (**36/36**): PGP encode/decode vs `dcrwallet/walletseed` vectors; full
+- `test/verify.js` (**38/38**): PGP encode/decode vs `dcrwallet/walletseed` vectors; full
   derivation (`master + CKD + hash160 + base58check + version bytes`) vs `dcrd/hdkeychain`
   `dprv`/`dpub` extended-key vectors (exact); secp256k1 generator; BIP39 Trezor vector.
 - `test/verify15.js` (**10/10**): the 15-word encoder is byte-identical to a literal port of
@@ -145,7 +146,7 @@ code; keeping the crypto as a separate, vector-tested source is the whole point.
 ```
 npm install            # dev deps: dcr-ts (from npm), @noble/hashes, esbuild
 npm run build          # bundle the dcr-ts engine, then inline everything -> index.html
-npm test               # regenerates the bundle, then runs both vector suites (46 checks)
+npm test               # regenerates the bundle, then runs both vector suites (48 checks)
 ```
 
 The individual steps, if you want them:
@@ -153,20 +154,20 @@ The individual steps, if you want them:
 ```
 npm run bundle         # src/dcr-engine.mjs (+ dcr-ts + noble/scure)  ->  src/engine.bundle.js
 node build.js          # src/template.html + engine.bundle + PGP list + fonts  ->  index.html
-node test/verify.js    # crypto regression vs canonical dcrd/dcrwallet vectors (36/36)
+node test/verify.js    # crypto regression vs canonical dcrd/dcrwallet vectors (38/38)
 node test/verify15.js  # 15-word DCRDEX/Bison format vs canonical vectors (10/10)
 ```
 
-`index.html` is 320,861 bytes. Just under half is the crypto engine; most of the rest is
+`index.html` is 333,815 bytes. Just over half is the crypto engine; most of the rest is
 the two embedded fonts and the app itself:
 
 | part | bytes | |
 | --- | ---: | --- |
-| engine bundle | 157,047 | dcr-ts + `@noble` / `@scure`, compiled by esbuild |
+| engine bundle | 168,287 | dcr-ts + `@noble` / `@scure`, compiled by esbuild |
 | fonts | 71,632 | Space Grotesk + JetBrains Mono, base64 woff2 |
-| markup, CSS, app controller, QR, word lists | 91,398 | |
+| markup, CSS, app controller, QR, word lists | 93,112 | |
 | favicon | 784 | base64 SVG |
-| **total** | **320,861** | |
+| **total** | **333,815** | |
 
 Both generated files are deterministic — rebuilding from unchanged sources reproduces
 them byte for byte.

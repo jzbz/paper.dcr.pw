@@ -907,6 +907,11 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         if (enginesLoaded()) return resolve();
         if (window.crypto && !window.crypto.subtle)
           return reject(new Error('Web Crypto is unavailable. Open this file directly (file://) or serve it over https/localhost — plain http disables the crypto APIs this tool needs.'));
+        // The engine's curve library calls Object.hasOwn (ES2022) as it loads, so
+        // on an older browser it throws before defining window.DCR. Say so, rather
+        // than time out into the truncated-file message below.
+        if (typeof Object.hasOwn !== 'function')
+          return reject(new Error('This browser is too old for the embedded crypto engine. Use Chrome or Edge 93, Firefox 92, Safari 15.4, or anything newer.'));
         if (Date.now() - t0 > timeoutMs)
           return reject(new Error('The embedded crypto engines failed to load. The file may be truncated or corrupted — re-download index.html and try again.'));
         setTimeout(poll, 50);

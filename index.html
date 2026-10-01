@@ -369,41 +369,105 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-  // node_modules/@noble/hashes/esm/crypto.js
-  var crypto2 = typeof globalThis === "object" && "crypto" in globalThis ? globalThis.crypto : void 0;
+  // node_modules/@noble/hashes/_u64.js
+  var U32_MASK64 = /*  */ (() => BigInt(2 ** 32 - 1))();
+  var _32n = /*  */ BigInt(32);
+  function fromBig(n, le = false) {
+    if (le)
+      return { h: Number(n & U32_MASK64), l: Number(n >> _32n & U32_MASK64) };
+    return { h: Number(n >> _32n & U32_MASK64) | 0, l: Number(n & U32_MASK64) | 0 };
+  }
+  function split(lst, le = false) {
+    const len = lst.length;
+    let Ah = new Uint32Array(len);
+    let Al = new Uint32Array(len);
+    for (let i = 0; i < len; i++) {
+      const { h, l } = fromBig(lst[i], le);
+      [Ah[i], Al[i]] = [h, l];
+    }
+    return [Ah, Al];
+  }
+  var fromNumH = (n) => n / 2 ** 32 | 0;
+  var fromNumL = (n) => n >>> 0;
+  function setU64FromNum(view, byteOffset, n, isLE) {
+    const h = fromNumH(n);
+    const l = fromNumL(n);
+    view.setUint32(byteOffset, isLE ? l : h, isLE);
+    view.setUint32(byteOffset + 4, isLE ? h : l, isLE);
+  }
+  var shrSH = (h, _l, s) => h >>> s;
+  var shrSL = (h, l, s) => h << 32 - s | l >>> s;
+  var rotrSH = (h, l, s) => h >>> s | l << 32 - s;
+  var rotrSL = (h, l, s) => h << 32 - s | l >>> s;
+  var rotrBH = (h, l, s) => h << 64 - s | l >>> s - 32;
+  var rotrBL = (h, l, s) => h >>> s - 32 | l << 64 - s;
+  function add(Ah, Al, Bh, Bl) {
+    const l = (Al >>> 0) + (Bl >>> 0);
+    return { h: Ah + Bh + (l / 2 ** 32 | 0) | 0, l: l | 0 };
+  }
+  var add3L = (Al, Bl, Cl) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0);
+  var add3H = (low, Ah, Bh, Ch) => Ah + Bh + Ch + (low / 2 ** 32 | 0) | 0;
+  var add4L = (Al, Bl, Cl, Dl) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0) + (Dl >>> 0);
+  var add4H = (low, Ah, Bh, Ch, Dh) => Ah + Bh + Ch + Dh + (low / 2 ** 32 | 0) | 0;
+  var add5L = (Al, Bl, Cl, Dl, El) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0) + (Dl >>> 0) + (El >>> 0);
+  var add5H = (low, Ah, Bh, Ch, Dh, Eh) => Ah + Bh + Ch + Dh + Eh + (low / 2 ** 32 | 0) | 0;
 
-  // node_modules/@noble/hashes/esm/utils.js
-  /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  // node_modules/@noble/hashes/utils.js
   function isBytes(a) {
-    return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
+    return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array" && "BYTES_PER_ELEMENT" in a && a.BYTES_PER_ELEMENT === 1;
   }
-  function anumber(n) {
+  var atitle = (title) => title ? `"${title}" ` : "";
+  function anumber(n, title = "") {
+    if (typeof n !== "number")
+      throw new TypeError(atitle(title) + "expected number, got " + typeof n);
     if (!Number.isSafeInteger(n) || n < 0)
-      throw new Error("positive integer expected, got " + n);
+      throw new RangeError(atitle(title) + "expected integer >= 0, got " + n);
+    return n;
   }
-  function abytes(b, ...lengths) {
-    if (!isBytes(b))
-      throw new Error("Uint8Array expected");
-    if (lengths.length > 0 && !lengths.includes(b.length))
-      throw new Error("Uint8Array expected of length " + lengths + ", got length=" + b.length);
+  function abytes(value, length, title = "") {
+    if (isBytes(value) && (length === void 0 || value.length === length))
+      return value;
+    if (length !== void 0)
+      anumber(length, "length");
+    const bytes = isBytes(value);
+    const ofLen = length !== void 0 ? ` of length ${length}` : "";
+    const got = bytes ? `length=${value.length}` : `type=${typeof value}`;
+    const message = atitle(title) + "expected Uint8Array" + ofLen + ", got " + got;
+    if (!bytes)
+      throw new TypeError(message);
+    throw new RangeError(message);
   }
   function ahash(h) {
     if (typeof h !== "function" || typeof h.create !== "function")
-      throw new Error("Hash should be wrapped by utils.createHasher");
+      throw new TypeError("expected hash wrapped by utils.createHasher");
     anumber(h.outputLen);
     anumber(h.blockLen);
+    if (h.outputLen < 1 || h.blockLen < 1)
+      throw new Error("hash blockLen / outputLen must be >= 1");
   }
+  var aobject = (value, label) => {
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+      throw new TypeError((label === "object" ? "" : `"${label}" `) + "expected object, got type=" + typeof value);
+  };
+  var aopts = (value, label) => {
+    aobject(value, label);
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null)
+      throw new TypeError(`"${label}" expected plain object`);
+    if (Object.hasOwn(value, "__proto__"))
+      throw new TypeError(`"${label}.__proto__" is not allowed`);
+  };
   function aexists(instance, checkFinished = true) {
     if (instance.destroyed)
-      throw new Error("Hash instance has been destroyed");
+      throw new Error("hash was destroyed");
     if (checkFinished && instance.finished)
-      throw new Error("Hash#digest() has already been called");
+      throw new Error("digest() was already called");
   }
   function aoutput(out, instance) {
-    abytes(out);
+    abytes(out, void 0, "output");
     const min = instance.outputLen;
-    if (out.length < min) {
-      throw new Error("digestInto() expects output buffer of length at least " + min);
+    if (!(out.length >= min)) {
+      throw new RangeError('"output" expected length >= ' + min);
     }
   }
   function clean(...arrays) {
@@ -435,32 +499,32 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     }
     return hex;
   }
-  var asciis = { _0: 48, _9: 57, A: 65, F: 70, a: 97, f: 102 };
   function asciiToBase16(ch) {
-    if (ch >= asciis._0 && ch <= asciis._9)
-      return ch - asciis._0;
-    if (ch >= asciis.A && ch <= asciis.F)
-      return ch - (asciis.A - 10);
-    if (ch >= asciis.a && ch <= asciis.f)
-      return ch - (asciis.a - 10);
-    return;
+    return ch >= 48 && ch <= 57 ? ch - 48 : ch >= 65 && ch <= 70 ? ch - (65 - 10) : ch >= 97 && ch <= 102 ? ch - (97 - 10) : void 0;
   }
   function hexToBytes(hex) {
     if (typeof hex !== "string")
-      throw new Error("hex string expected, got " + typeof hex);
-    if (hasHexBuiltin)
-      return Uint8Array.fromHex(hex);
+      throw new TypeError("hex string expected, got " + typeof hex);
+    if (hasHexBuiltin) {
+      try {
+        return Uint8Array.fromHex(hex);
+      } catch (error) {
+        if (error instanceof SyntaxError)
+          throw new RangeError(error.message);
+        throw error;
+      }
+    }
     const hl = hex.length;
     const al = hl / 2;
     if (hl % 2)
-      throw new Error("hex string expected, got unpadded hex of length " + hl);
+      throw new RangeError("hex string expected, got unpadded hex of length " + hl);
     const array = new Uint8Array(al);
     for (let ai = 0, hi = 0; ai < al; ai++, hi += 2) {
       const n1 = asciiToBase16(hex.charCodeAt(hi));
       const n2 = asciiToBase16(hex.charCodeAt(hi + 1));
       if (n1 === void 0 || n2 === void 0) {
         const char = hex[hi] + hex[hi + 1];
-        throw new Error('hex string expected, got non-hex character "' + char + '" at index ' + hi);
+        throw new RangeError('hex string expected, got non-hex character "' + char + '" at index ' + hi);
       }
       array[ai] = n1 * 16 + n2;
     }
@@ -468,20 +532,18 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   }
   function utf8ToBytes(str) {
     if (typeof str !== "string")
-      throw new Error("string expected");
-    return new Uint8Array(new TextEncoder().encode(str));
+      throw new TypeError("string expected");
+    const encoded = new TextEncoder().encode(str);
+    try {
+      return new Uint8Array(encoded);
+    } finally {
+      clean(encoded);
+    }
   }
-  function toBytes(data) {
+  function kdfInputToBytes(data, errorTitle = "") {
     if (typeof data === "string")
-      data = utf8ToBytes(data);
-    abytes(data);
-    return data;
-  }
-  function kdfInputToBytes(data) {
-    if (typeof data === "string")
-      data = utf8ToBytes(data);
-    abytes(data);
-    return data;
+      return utf8ToBytes(data);
+    return abytes(data, void 0, errorTitle);
   }
   function concatBytes(...arrays) {
     let sum = 0;
@@ -498,58 +560,62 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     }
     return res;
   }
-  function checkOpts(defaults, opts) {
-    if (opts !== void 0 && {}.toString.call(opts) !== "[object Object]")
-      throw new Error("options should be object or undefined");
-    const merged = Object.assign(defaults, opts);
+  function checkOpts(defaults, opts, title = "opts") {
+    aopts(defaults, "defaults");
+    if (opts !== void 0)
+      aopts(opts, title);
+    const merged = Object.assign(/*  */ Object.create(null), defaults, opts);
     return merged;
   }
-  var Hash = class {
-  };
-  function createHasher(hashCons) {
-    const hashC = (msg) => hashCons().update(toBytes(msg)).digest();
-    const tmp = hashCons();
+  function createHasher(hashCons, info = {}) {
+    if (typeof hashCons !== "function")
+      throw new TypeError('"hashCons" expected function, got type=' + typeof hashCons);
+    info = checkOpts({}, info, "info");
+    const hashC = (msg, opts) => hashCons(opts).update(msg).digest();
+    const tmp = hashCons(void 0);
     hashC.outputLen = tmp.outputLen;
     hashC.blockLen = tmp.blockLen;
-    hashC.create = () => hashCons();
-    return hashC;
+    hashC.canXOF = tmp.canXOF;
+    hashC.create = (opts) => hashCons(opts);
+    Object.assign(hashC, info);
+    return Object.freeze(hashC);
   }
   function randomBytes(bytesLength = 32) {
-    if (crypto2 && typeof crypto2.getRandomValues === "function") {
-      return crypto2.getRandomValues(new Uint8Array(bytesLength));
-    }
-    if (crypto2 && typeof crypto2.randomBytes === "function") {
-      return Uint8Array.from(crypto2.randomBytes(bytesLength));
-    }
-    throw new Error("crypto.getRandomValues must be defined");
+    anumber(bytesLength, "bytesLength");
+    const cr = typeof globalThis === "object" ? globalThis.crypto : null;
+    if (typeof cr?.getRandomValues !== "function")
+      throw new Error("crypto.getRandomValues must be defined");
+    if (bytesLength > 65536)
+      throw new RangeError(`"bytesLength" expected <= 65536, got ${bytesLength}`);
+    return cr.getRandomValues(new Uint8Array(bytesLength));
   }
+  var oidNist = (suffix) => ({
+    // Current NIST hashAlgs suffixes used here fit in one DER subidentifier octet.
+    // Larger suffix values would need base-128 OID encoding and a different length byte.
+    oid: Uint8Array.from([6, 9, 96, 134, 72, 1, 101, 3, 4, 2, suffix])
+  });
 
-  // node_modules/@noble/hashes/esm/_md.js
-  function setBigUint64(view, byteOffset, value, isLE) {
-    if (typeof view.setBigUint64 === "function")
-      return view.setBigUint64(byteOffset, value, isLE);
-    const _32n2 = BigInt(32);
-    const _u32_max = BigInt(4294967295);
-    const wh = Number(value >> _32n2 & _u32_max);
-    const wl = Number(value & _u32_max);
-    const h = isLE ? 4 : 0;
-    const l = isLE ? 0 : 4;
-    view.setUint32(byteOffset + h, wh, isLE);
-    view.setUint32(byteOffset + l, wl, isLE);
-  }
+  // node_modules/@noble/hashes/_md.js
   function Chi(a, b, c) {
     return a & b ^ ~a & c;
   }
   function Maj(a, b, c) {
     return a & b ^ a & c ^ b & c;
   }
-  var HashMD = class extends Hash {
+  var HashMD = class {
     constructor(blockLen, outputLen, padOffset, isLE) {
-      super();
-      this.finished = false;
-      this.length = 0;
-      this.pos = 0;
-      this.destroyed = false;
+      __publicField(this, "blockLen");
+      __publicField(this, "outputLen");
+      __publicField(this, "canXOF", false);
+      __publicField(this, "padOffset");
+      __publicField(this, "isLE");
+      // For partial updates less than block size
+      __publicField(this, "buffer");
+      __publicField(this, "view");
+      __publicField(this, "finished", false);
+      __publicField(this, "length", 0);
+      __publicField(this, "pos", 0);
+      __publicField(this, "destroyed", false);
       this.blockLen = blockLen;
       this.outputLen = outputLen;
       this.padOffset = padOffset;
@@ -559,28 +625,31 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     }
     update(data) {
       aexists(this);
-      data = toBytes(data);
       abytes(data);
       const { view, buffer, blockLen } = this;
       const len = data.length;
+      let processed = false;
       for (let pos = 0; pos < len; ) {
         const take = Math.min(blockLen - this.pos, len - pos);
         if (take === blockLen) {
           const dataView = createView(data);
           for (; blockLen <= len - pos; pos += blockLen)
             this.process(dataView, pos);
+          processed = true;
           continue;
         }
-        buffer.set(data.subarray(pos, pos + take), this.pos);
+        buffer.set(pos === 0 && take === len ? data : data.subarray(pos, pos + take), this.pos);
         this.pos += take;
         pos += take;
         if (this.pos === blockLen) {
           this.process(view, 0);
           this.pos = 0;
+          processed = true;
         }
       }
       this.length += data.length;
-      this.roundClean();
+      if (processed)
+        this.roundClean();
       return this;
     }
     digestInto(out) {
@@ -590,23 +659,20 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       const { buffer, view, blockLen, isLE } = this;
       let { pos } = this;
       buffer[pos++] = 128;
-      clean(this.buffer.subarray(pos));
+      buffer.fill(0, pos);
       if (this.padOffset > blockLen - pos) {
         this.process(view, 0);
-        pos = 0;
+        buffer.fill(0);
       }
-      for (let i = pos; i < blockLen; i++)
-        buffer[i] = 0;
-      setBigUint64(view, blockLen - 8, BigInt(this.length * 8), isLE);
+      setU64FromNum(view, blockLen - 8, this.length * 8, isLE);
       this.process(view, 0);
-      const oview = createView(out);
+      this.roundClean();
+      const oview = out === buffer ? view : createView(out);
       const len = this.outputLen;
-      if (len % 4)
-        throw new Error("_sha2: outputLen should be aligned to 32bit");
       const outLen = len / 4;
       const state = this.get();
-      if (outLen > state.length)
-        throw new Error("_sha2: outputLen bigger than state");
+      if (len % 4 || outLen > state.length)
+        throw new Error("invalid outputLen");
       for (let i = 0; i < outLen; i++)
         oview.setUint32(4 * i, state[i], isLE);
     }
@@ -617,15 +683,13 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       this.destroy();
       return res;
     }
-    _cloneInto(to) {
-      to || (to = new this.constructor());
-      to.set(...this.get());
-      const { blockLen, buffer, length, finished, destroyed, pos } = this;
+    _cloneIntoMeta(to) {
+      const { buffer, length, finished, destroyed, pos } = this;
       to.destroyed = destroyed;
       to.finished = finished;
       to.length = length;
       to.pos = pos;
-      if (length % blockLen)
+      if (pos)
         to.buffer.set(buffer);
       return to;
     }
@@ -662,7 +726,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     327033209
   ]);
 
-  // node_modules/@noble/hashes/esm/legacy.js
+  // node_modules/@noble/hashes/legacy.js
   var Rho160 = /*  */ Uint8Array.from([
     7,
     4,
@@ -729,14 +793,14 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     return x ^ (y | ~z);
   }
   var BUF_160 = /*  */ new Uint32Array(16);
-  var RIPEMD160 = class extends HashMD {
+  var _RIPEMD160 = class extends HashMD {
     constructor() {
       super(64, 20, 8, true);
-      this.h0 = 1732584193 | 0;
-      this.h1 = 4023233417 | 0;
-      this.h2 = 2562383102 | 0;
-      this.h3 = 271733878 | 0;
-      this.h4 = 3285377520 | 0;
+      __publicField(this, "h0", 1732584193 | 0);
+      __publicField(this, "h1", 4023233417 | 0);
+      __publicField(this, "h2", 2562383102 | 0);
+      __publicField(this, "h3", 271733878 | 0);
+      __publicField(this, "h4", 3285377520 | 0);
     }
     get() {
       const { h0, h1, h2, h3, h4 } = this;
@@ -748,6 +812,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       this.h2 = h2 | 0;
       this.h3 = h3 | 0;
       this.h4 = h4 | 0;
+    }
+    _cloneInto(to) {
+      (to || (to = new this.constructor())).set(...this.get());
+      return this._cloneIntoMeta(to);
     }
     process(view, offset) {
       for (let i = 0; i < 16; i++, offset += 4)
@@ -778,47 +846,9 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       this.set(0, 0, 0, 0, 0);
     }
   };
-  var ripemd160 = /*  */ createHasher(() => new RIPEMD160());
+  var ripemd160 = /*  */ createHasher(() => new _RIPEMD160());
 
-  // node_modules/@noble/hashes/esm/ripemd160.js
-  var ripemd1602 = ripemd160;
-
-  // node_modules/@noble/hashes/esm/_u64.js
-  var U32_MASK64 = /*  */ BigInt(2 ** 32 - 1);
-  var _32n = /*  */ BigInt(32);
-  function fromBig(n, le = false) {
-    if (le)
-      return { h: Number(n & U32_MASK64), l: Number(n >> _32n & U32_MASK64) };
-    return { h: Number(n >> _32n & U32_MASK64) | 0, l: Number(n & U32_MASK64) | 0 };
-  }
-  function split(lst, le = false) {
-    const len = lst.length;
-    let Ah = new Uint32Array(len);
-    let Al = new Uint32Array(len);
-    for (let i = 0; i < len; i++) {
-      const { h, l } = fromBig(lst[i], le);
-      [Ah[i], Al[i]] = [h, l];
-    }
-    return [Ah, Al];
-  }
-  var shrSH = (h, _l, s) => h >>> s;
-  var shrSL = (h, l, s) => h << 32 - s | l >>> s;
-  var rotrSH = (h, l, s) => h >>> s | l << 32 - s;
-  var rotrSL = (h, l, s) => h << 32 - s | l >>> s;
-  var rotrBH = (h, l, s) => h << 64 - s | l >>> s - 32;
-  var rotrBL = (h, l, s) => h >>> s - 32 | l << 64 - s;
-  function add(Ah, Al, Bh, Bl) {
-    const l = (Al >>> 0) + (Bl >>> 0);
-    return { h: Ah + Bh + (l / 2 ** 32 | 0) | 0, l: l | 0 };
-  }
-  var add3L = (Al, Bl, Cl) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0);
-  var add3H = (low, Ah, Bh, Ch) => Ah + Bh + Ch + (low / 2 ** 32 | 0) | 0;
-  var add4L = (Al, Bl, Cl, Dl) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0) + (Dl >>> 0);
-  var add4H = (low, Ah, Bh, Ch, Dh) => Ah + Bh + Ch + Dh + (low / 2 ** 32 | 0) | 0;
-  var add5L = (Al, Bl, Cl, Dl, El) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0) + (Dl >>> 0) + (El >>> 0);
-  var add5H = (low, Ah, Bh, Ch, Dh, Eh) => Ah + Bh + Ch + Dh + Eh + (low / 2 ** 32 | 0) | 0;
-
-  // node_modules/@noble/hashes/esm/sha2.js
+  // node_modules/@noble/hashes/sha2.js
   var SHA256_K = /*  */ Uint32Array.from([
     1116352408,
     1899447441,
@@ -886,17 +916,29 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     3329325298
   ]);
   var SHA256_W = /*  */ new Uint32Array(64);
-  var SHA256 = class extends HashMD {
-    constructor(outputLen = 32) {
+  var SHA2_32B = class extends HashMD {
+    constructor(outputLen, IV2) {
       super(64, outputLen, 8, false);
-      this.A = SHA256_IV[0] | 0;
-      this.B = SHA256_IV[1] | 0;
-      this.C = SHA256_IV[2] | 0;
-      this.D = SHA256_IV[3] | 0;
-      this.E = SHA256_IV[4] | 0;
-      this.F = SHA256_IV[5] | 0;
-      this.G = SHA256_IV[6] | 0;
-      this.H = SHA256_IV[7] | 0;
+      // We cannot use array here since array allows indexing by variable
+      // which means optimizer/compiler cannot use registers.
+      // Numeric initializers matter: starting the fields as `undefined` changes
+      // V8's field representation and makes sha256 3x slower (measured).
+      __publicField(this, "A", 0);
+      __publicField(this, "B", 0);
+      __publicField(this, "C", 0);
+      __publicField(this, "D", 0);
+      __publicField(this, "E", 0);
+      __publicField(this, "F", 0);
+      __publicField(this, "G", 0);
+      __publicField(this, "H", 0);
+      this.A = IV2[0] | 0;
+      this.B = IV2[1] | 0;
+      this.C = IV2[2] | 0;
+      this.D = IV2[3] | 0;
+      this.E = IV2[4] | 0;
+      this.F = IV2[5] | 0;
+      this.G = IV2[6] | 0;
+      this.H = IV2[7] | 0;
     }
     get() {
       const { A, B, C: C2, D, E, F, G, H } = this;
@@ -912,6 +954,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       this.F = F | 0;
       this.G = G | 0;
       this.H = H | 0;
+    }
+    _cloneInto(to) {
+      (to || (to = new this.constructor())).set(...this.get());
+      return this._cloneIntoMeta(to);
     }
     process(view, offset) {
       for (let i = 0; i < 16; i++, offset += 4)
@@ -952,8 +998,14 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       clean(SHA256_W);
     }
     destroy() {
+      this.destroyed = true;
       this.set(0, 0, 0, 0, 0, 0, 0, 0);
       clean(this.buffer);
+    }
+  };
+  var _SHA256 = class extends SHA2_32B {
+    constructor() {
+      super(32, SHA256_IV);
     }
   };
   var K512 = /*  */ (() => split([
@@ -1042,25 +1094,46 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   var SHA512_Kl = /*  */ (() => K512[1])();
   var SHA512_W_H = /*  */ new Uint32Array(80);
   var SHA512_W_L = /*  */ new Uint32Array(80);
-  var SHA512 = class extends HashMD {
-    constructor(outputLen = 64) {
+  var SHA2_64B = class extends HashMD {
+    constructor(outputLen, IV2) {
       super(128, outputLen, 16, false);
-      this.Ah = SHA512_IV[0] | 0;
-      this.Al = SHA512_IV[1] | 0;
-      this.Bh = SHA512_IV[2] | 0;
-      this.Bl = SHA512_IV[3] | 0;
-      this.Ch = SHA512_IV[4] | 0;
-      this.Cl = SHA512_IV[5] | 0;
-      this.Dh = SHA512_IV[6] | 0;
-      this.Dl = SHA512_IV[7] | 0;
-      this.Eh = SHA512_IV[8] | 0;
-      this.El = SHA512_IV[9] | 0;
-      this.Fh = SHA512_IV[10] | 0;
-      this.Fl = SHA512_IV[11] | 0;
-      this.Gh = SHA512_IV[12] | 0;
-      this.Gl = SHA512_IV[13] | 0;
-      this.Hh = SHA512_IV[14] | 0;
-      this.Hl = SHA512_IV[15] | 0;
+      // We cannot use array here since array allows indexing by variable
+      // which means optimizer/compiler cannot use registers.
+      // h -- high 32 bits, l -- low 32 bits
+      // Numeric initializers matter: starting the fields as `undefined` changes
+      // V8's field representation and slows hashing down (measured on sha256).
+      __publicField(this, "Ah", 0);
+      __publicField(this, "Al", 0);
+      __publicField(this, "Bh", 0);
+      __publicField(this, "Bl", 0);
+      __publicField(this, "Ch", 0);
+      __publicField(this, "Cl", 0);
+      __publicField(this, "Dh", 0);
+      __publicField(this, "Dl", 0);
+      __publicField(this, "Eh", 0);
+      __publicField(this, "El", 0);
+      __publicField(this, "Fh", 0);
+      __publicField(this, "Fl", 0);
+      __publicField(this, "Gh", 0);
+      __publicField(this, "Gl", 0);
+      __publicField(this, "Hh", 0);
+      __publicField(this, "Hl", 0);
+      this.Ah = IV2[0] | 0;
+      this.Al = IV2[1] | 0;
+      this.Bh = IV2[2] | 0;
+      this.Bl = IV2[3] | 0;
+      this.Ch = IV2[4] | 0;
+      this.Cl = IV2[5] | 0;
+      this.Dh = IV2[6] | 0;
+      this.Dl = IV2[7] | 0;
+      this.Eh = IV2[8] | 0;
+      this.El = IV2[9] | 0;
+      this.Fh = IV2[10] | 0;
+      this.Fl = IV2[11] | 0;
+      this.Gh = IV2[12] | 0;
+      this.Gl = IV2[13] | 0;
+      this.Hh = IV2[14] | 0;
+      this.Hl = IV2[15] | 0;
     }
     // prettier-ignore
     get() {
@@ -1085,6 +1158,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       this.Gl = Gl | 0;
       this.Hh = Hh | 0;
       this.Hl = Hl | 0;
+    }
+    _cloneInto(to) {
+      (to || (to = new this.constructor())).set(...this.get());
+      return this._cloneIntoMeta(to);
     }
     process(view, offset) {
       for (let i = 0; i < 16; i++, offset += 4) {
@@ -1149,168 +1226,146 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       clean(SHA512_W_H, SHA512_W_L);
     }
     destroy() {
+      this.destroyed = true;
       clean(this.buffer);
       this.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
   };
-  var sha256 = /*  */ createHasher(() => new SHA256());
-  var sha512 = /*  */ createHasher(() => new SHA512());
-
-  // node_modules/@noble/hashes/esm/hmac.js
-  var HMAC = class extends Hash {
-    constructor(hash, _key) {
-      super();
-      this.finished = false;
-      this.destroyed = false;
-      ahash(hash);
-      const key = toBytes(_key);
-      this.iHash = hash.create();
-      if (typeof this.iHash.update !== "function")
-        throw new Error("Expected instance of class which extends utils.Hash");
-      this.blockLen = this.iHash.blockLen;
-      this.outputLen = this.iHash.outputLen;
-      const blockLen = this.blockLen;
-      const pad = new Uint8Array(blockLen);
-      pad.set(key.length > blockLen ? hash.create().update(key).digest() : key);
-      for (let i = 0; i < pad.length; i++)
-        pad[i] ^= 54;
-      this.iHash.update(pad);
-      this.oHash = hash.create();
-      for (let i = 0; i < pad.length; i++)
-        pad[i] ^= 54 ^ 92;
-      this.oHash.update(pad);
-      clean(pad);
-    }
-    update(buf) {
-      aexists(this);
-      this.iHash.update(buf);
-      return this;
-    }
-    digestInto(out) {
-      aexists(this);
-      abytes(out, this.outputLen);
-      this.finished = true;
-      this.iHash.digestInto(out);
-      this.oHash.update(out);
-      this.oHash.digestInto(out);
-      this.destroy();
-    }
-    digest() {
-      const out = new Uint8Array(this.oHash.outputLen);
-      this.digestInto(out);
-      return out;
-    }
-    _cloneInto(to) {
-      to || (to = Object.create(Object.getPrototypeOf(this), {}));
-      const { oHash, iHash, finished, destroyed, blockLen, outputLen } = this;
-      to = to;
-      to.finished = finished;
-      to.destroyed = destroyed;
-      to.blockLen = blockLen;
-      to.outputLen = outputLen;
-      to.oHash = oHash._cloneInto(to.oHash);
-      to.iHash = iHash._cloneInto(to.iHash);
-      return to;
-    }
-    clone() {
-      return this._cloneInto();
-    }
-    destroy() {
-      this.destroyed = true;
-      this.oHash.destroy();
-      this.iHash.destroy();
+  var _SHA512 = class extends SHA2_64B {
+    constructor() {
+      super(64, SHA512_IV);
     }
   };
-  var hmac = (hash, key, message) => new HMAC(hash, key).update(message).digest();
-  hmac.create = (hash, key) => new HMAC(hash, key);
+  var sha256 = /*  */ createHasher(
+    () => new _SHA256(),
+    /*  */ oidNist(1)
+  );
+  var sha512 = /*  */ createHasher(
+    () => new _SHA512(),
+    /*  */ oidNist(3)
+  );
 
-  // node_modules/@noble/curves/esm/utils.js
+  // node_modules/@noble/curves/utils.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  function aarray(item, title, inner = () => {
+  }) {
+    if (!Array.isArray(item))
+      throw new TypeError(`"${title}" expected array, got type=${typeof item}`);
+    for (let i = 0; i < item.length; i++)
+      inner(item[i], `${title}[${i}]`);
+    return item;
+  }
+  var abytes2 = (value, length, title) => abytes(value, length, title);
+  var anumber2 = anumber;
+  function astring(value, title = "") {
+    if (typeof value !== "string") {
+      const prefix = title && `"${title}" `;
+      throw new TypeError(prefix + "expected string, got type=" + typeof value);
+    }
+    return value;
+  }
+  function aobject2(value, title = "object") {
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+      throw new TypeError(title === "object" ? "expected valid options object" : `"${title}" expected object, got type=${typeof value}`);
+    return value;
+  }
+  function afunction(value, title) {
+    if (typeof value !== "function")
+      throw new TypeError(`"${title}" is invalid: expected function, got ${typeof value}`);
+    return value;
+  }
+  var bytesToHex2 = bytesToHex;
+  var concatBytes2 = (...arrays) => concatBytes(...arrays);
+  var hexToBytes2 = (hex) => hexToBytes(hex);
+  var isBytes2 = isBytes;
+  var randomBytes2 = (bytesLength) => randomBytes(bytesLength);
   var _0n = /*  */ BigInt(0);
   var _1n = /*  */ BigInt(1);
-  function _abool2(value, title = "") {
-    if (typeof value !== "boolean") {
-      const prefix = title && `"${title}"`;
-      throw new Error(prefix + "expected boolean, got type=" + typeof value);
-    }
+  var atitle2 = (title) => title ? `"${title}" ` : "";
+  function abool(value, title = "") {
+    if (typeof value !== "boolean")
+      throw new TypeError(atitle2(title) + "expected boolean, got type=" + typeof value);
     return value;
   }
-  function _abytes2(value, length, title = "") {
-    const bytes = isBytes(value);
-    const len = value?.length;
-    const needsLen = length !== void 0;
-    if (!bytes || needsLen && len !== length) {
+  function abignumber(n) {
+    if (typeof n === "bigint") {
+      if (!isPosBig(n))
+        throw new RangeError("positive bigint expected, got " + n);
+    } else
+      anumber2(n);
+    return n;
+  }
+  function asafenumber(value, title = "") {
+    if (typeof value !== "number") {
       const prefix = title && `"${title}" `;
-      const ofLen = needsLen ? ` of length ${length}` : "";
-      const got = bytes ? `length=${len}` : `type=${typeof value}`;
-      throw new Error(prefix + "expected Uint8Array" + ofLen + ", got " + got);
+      throw new TypeError(prefix + "expected number, got type=" + typeof value);
     }
-    return value;
+    if (!Number.isSafeInteger(value)) {
+      const prefix = title && `"${title}" `;
+      throw new RangeError(prefix + "expected safe integer, got " + value);
+    }
   }
   function numberToHexUnpadded(num) {
-    const hex = num.toString(16);
+    const hex = abignumber(num).toString(16);
     return hex.length & 1 ? "0" + hex : hex;
   }
   function hexToNumber(hex) {
     if (typeof hex !== "string")
-      throw new Error("hex string expected, got " + typeof hex);
+      throw new TypeError("hex string expected, got " + typeof hex);
     return hex === "" ? _0n : BigInt("0x" + hex);
   }
   function bytesToNumberBE(bytes) {
     return hexToNumber(bytesToHex(bytes));
   }
   function bytesToNumberLE(bytes) {
-    abytes(bytes);
-    return hexToNumber(bytesToHex(Uint8Array.from(bytes).reverse()));
+    return hexToNumber(bytesToHex(copyBytes(abytes(bytes)).reverse()));
   }
   function numberToBytesBE(n, len) {
-    return hexToBytes(n.toString(16).padStart(len * 2, "0"));
+    anumber(len);
+    if (len === 0)
+      throw new Error("zero output length is invalid");
+    n = abignumber(n);
+    const expectedLen = len * 2;
+    const hex = n.toString(16);
+    if (hex.length > expectedLen)
+      throw new RangeError("number is too large");
+    return hexToBytes(hex.padStart(expectedLen, "0"));
   }
   function numberToBytesLE(n, len) {
     return numberToBytesBE(n, len).reverse();
   }
-  function ensureBytes(title, hex, expectedLength) {
-    let res;
-    if (typeof hex === "string") {
-      try {
-        res = hexToBytes(hex);
-      } catch (e) {
-        throw new Error(title + " must be hex string or Uint8Array, cause: " + e);
-      }
-    } else if (isBytes(hex)) {
-      res = Uint8Array.from(hex);
-    } else {
-      throw new Error(title + " must be hex string or Uint8Array");
-    }
-    const len = res.length;
-    if (typeof expectedLength === "number" && len !== expectedLength)
-      throw new Error(title + " of length " + expectedLength + " expected, got " + len);
-    return res;
+  function copyBytes(bytes) {
+    return Uint8Array.from(abytes2(bytes));
   }
-  var isPosBig = (n) => typeof n === "bigint" && _0n <= n;
+  function isPosBig(n) {
+    return typeof n === "bigint" && _0n <= n;
+  }
   function inRange(n, min, max) {
     return isPosBig(n) && isPosBig(min) && isPosBig(max) && min <= n && n < max;
   }
   function aInRange(title, n, min, max) {
     if (!inRange(n, min, max))
-      throw new Error("expected valid " + title + ": " + min + " <= n < " + max + ", got " + n);
+      throw new RangeError("expected valid " + title + ": " + min + " <= n < " + max + ", got " + n);
   }
   function bitLen(n) {
-    let len;
-    for (len = 0; n > _0n; n >>= _1n, len += 1)
-      ;
-    return len;
+    if (n < _0n)
+      throw new Error("expected non-negative bigint, got " + n);
+    return n === _0n ? 0 : n.toString(2).length;
   }
-  var bitMask = (n) => (_1n << BigInt(n)) - _1n;
+  var bitMask = (n) => {
+    asafenumber(n, "n");
+    return (_1n << BigInt(n)) - _1n;
+  };
   function createHmacDrbg(hashLen, qByteLen, hmacFn) {
-    if (typeof hashLen !== "number" || hashLen < 2)
-      throw new Error("hashLen must be a number");
-    if (typeof qByteLen !== "number" || qByteLen < 2)
-      throw new Error("qByteLen must be a number");
+    anumber(hashLen, "hashLen");
+    anumber(qByteLen, "qByteLen");
     if (typeof hmacFn !== "function")
-      throw new Error("hmacFn must be a function");
+      throw new TypeError("hmacFn must be a function");
     const u8n = (len) => new Uint8Array(len);
-    const u8of = (byte) => Uint8Array.of(byte);
+    const NULL = Uint8Array.of();
+    const byte0 = Uint8Array.of(0);
+    const byte1 = Uint8Array.of(1);
+    const _maxDrbgIters = 1e3;
     let v = u8n(hashLen);
     let k = u8n(hashLen);
     let i = 0;
@@ -1319,18 +1374,18 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       k.fill(0);
       i = 0;
     };
-    const h = (...b) => hmacFn(k, v, ...b);
-    const reseed = (seed = u8n(0)) => {
-      k = h(u8of(0), seed);
+    const h = (...msgs) => hmacFn(k, concatBytes2(v, ...msgs));
+    const reseed = (seed = NULL) => {
+      k = h(byte0, seed);
       v = h();
       if (seed.length === 0)
         return;
-      k = h(u8of(1), seed);
+      k = h(byte1, seed);
       v = h();
     };
     const gen = () => {
-      if (i++ >= 1e3)
-        throw new Error("drbg: tried 1000 values");
+      if (i++ >= _maxDrbgIters)
+        throw new Error("drbg: tried max amount of iterations");
       let len = 0;
       const out = [];
       while (len < qByteLen) {
@@ -1339,49 +1394,44 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         out.push(sl);
         len += v.length;
       }
-      return concatBytes(...out);
+      return concatBytes2(...out);
     };
     const genUntil = (seed, pred) => {
       reset();
       reseed(seed);
       let res = void 0;
-      while (!(res = pred(gen())))
+      while ((res = pred(gen())) === void 0)
         reseed();
       reset();
       return res;
     };
     return genUntil;
   }
-  function _validateObject(object, fields, optFields = {}) {
-    if (!object || typeof object !== "object")
-      throw new Error("expected valid options object");
+  function validateObject(object, fields = {}, optFields = {}, title = "object") {
+    aobject2(object, title);
+    aobject2(fields, "fields");
+    aobject2(optFields, "optFields");
     function checkField(fieldName, expectedType, isOpt) {
+      const label = title === "object" ? `param "${String(fieldName)}"` : `"${title}.${String(fieldName)}"`;
       const val = object[fieldName];
+      if (!Object.hasOwn(object, fieldName) && (isOpt ? val !== void 0 : expectedType !== "function")) {
+        throw new TypeError(`${label} is invalid: expected own property`);
+      }
       if (isOpt && val === void 0)
         return;
       const current = typeof val;
       if (current !== expectedType || val === null)
-        throw new Error(`param "${fieldName}" is invalid: expected ${expectedType}, got ${current}`);
+        throw new TypeError(`${label} is invalid: expected ${expectedType}, got ${current}`);
     }
-    Object.entries(fields).forEach(([k, v]) => checkField(k, v, false));
-    Object.entries(optFields).forEach(([k, v]) => checkField(k, v, true));
-  }
-  function memoized(fn) {
-    const map = /*  */ new WeakMap();
-    return (arg, ...args) => {
-      const val = map.get(arg);
-      if (val !== void 0)
-        return val;
-      const computed = fn(arg, ...args);
-      map.set(arg, computed);
-      return computed;
-    };
+    const iter = (f, isOpt) => Object.entries(f).forEach(([k, v]) => checkField(k, v, isOpt));
+    iter(fields, false);
+    iter(optFields, true);
   }
 
-  // node_modules/@noble/curves/esm/abstract/modular.js
+  // node_modules/@noble/curves/abstract/modular.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
-  var _0n2 = BigInt(0);
-  var _1n2 = BigInt(1);
+  var _0n2 = /*  */ BigInt(0);
+  var _1n2 = /*  */ BigInt(1);
   var _2n = /*  */ BigInt(2);
   var _3n = /*  */ BigInt(3);
   var _4n = /*  */ BigInt(4);
@@ -1389,12 +1439,66 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   var _7n = /*  */ BigInt(7);
   var _8n = /*  */ BigInt(8);
   var _9n = /*  */ BigInt(9);
+  var _15n = /*  */ BigInt(15);
   var _16n = /*  */ BigInt(16);
+  var POW_WINDOWED_MIN = /*  */ BigInt("0x10000000000000000");
   function mod(a, b) {
+    if (b <= _0n2)
+      throw new Error("mod: expected positive modulus, got " + b);
     const result = a % b;
     return result >= _0n2 ? result : b + result;
   }
+  function pow(num, power, modulo) {
+    if (modulo <= _1n2)
+      throw new Error("pow: expected modulus > 1, got " + modulo);
+    if (typeof power !== "bigint")
+      throw new TypeError("invalid exponent: expected bigint, got " + typeof power);
+    if (power < _0n2)
+      throw new Error("invalid exponent, negatives unsupported");
+    if (power === _0n2)
+      return _1n2;
+    if (power === _1n2)
+      return num;
+    let d = num % modulo;
+    if (d < _0n2)
+      d += modulo;
+    if (power < POW_WINDOWED_MIN) {
+      let p2 = _1n2;
+      while (power > _0n2) {
+        if (power & _1n2)
+          p2 = p2 * d % modulo;
+        d = d * d % modulo;
+        power >>= _1n2;
+      }
+      return p2;
+    }
+    const digits = [];
+    while (power > _0n2) {
+      digits.push(Number(power & _15n));
+      power >>= _4n;
+    }
+    const table = new Array(16);
+    table[0] = _1n2;
+    table[1] = d;
+    for (let i = 2; i < 16; i++)
+      table[i] = table[i - 1] * d % modulo;
+    let p = table[digits[digits.length - 1]];
+    for (let w = digits.length - 2; w >= 0; w--) {
+      p = p * p % modulo;
+      p = p * p % modulo;
+      p = p * p % modulo;
+      p = p * p % modulo;
+      const digit = digits[w];
+      if (digit !== 0)
+        p = p * table[digit] % modulo;
+    }
+    return p;
+  }
   function pow2(x, power, modulo) {
+    if (modulo <= _1n2)
+      throw new Error("pow2: expected modulus > 1, got " + modulo);
+    if (power < _0n2)
+      throw new Error("pow2: expected non-negative exponent, got " + power);
     let res = x;
     while (power-- > _0n2) {
       res *= res;
@@ -1405,41 +1509,58 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   function invert(number, modulo) {
     if (number === _0n2)
       throw new Error("invert: expected non-zero number");
-    if (modulo <= _0n2)
-      throw new Error("invert: expected positive modulus, got " + modulo);
+    if (modulo <= _1n2)
+      throw new Error("invert: expected modulus > 1, got " + modulo);
     let a = mod(number, modulo);
     let b = modulo;
-    let x = _0n2, y = _1n2, u = _1n2, v = _0n2;
+    let x = _0n2, u = _1n2;
     while (a !== _0n2) {
       const q = b / a;
-      const r = b % a;
+      const r = b - a * q;
       const m = x - u * q;
-      const n = y - v * q;
-      b = a, a = r, x = u, y = v, u = m, v = n;
+      b = a, a = r, x = u, u = m;
     }
-    const gcd2 = b;
-    if (gcd2 !== _1n2)
+    const gcd = b;
+    if (gcd !== _1n2)
       throw new Error("invert: does not exist");
     return mod(x, modulo);
   }
+  function invertCt(a, prime) {
+    if (prime <= _1n2)
+      throw new Error("invertCt: expected prime modulus > 1, got " + prime);
+    const an = mod(a, prime);
+    if (an === _0n2)
+      throw new Error("invertCt: expected non-zero number");
+    const inverse = pow(an, prime - _2n, prime);
+    if (mod(an * inverse, prime) !== _1n2)
+      throw new Error("invertCt: does not exist");
+    return inverse;
+  }
   function assertIsSquare(Fp, root, n) {
-    if (!Fp.eql(Fp.sqr(root), n))
+    const F = Fp;
+    if (!F.eql(F.sqr(root), n))
       throw new Error("Cannot find square root");
   }
+  function aoddModulus(order, fnName) {
+    if ((order & _1n2) === _0n2)
+      throw new Error(fnName + ": expected odd modulus, got " + order);
+  }
   function sqrt3mod4(Fp, n) {
-    const p1div4 = (Fp.ORDER + _1n2) / _4n;
-    const root = Fp.pow(n, p1div4);
-    assertIsSquare(Fp, root, n);
+    const F = Fp;
+    const p1div4 = (F.ORDER + _1n2) / _4n;
+    const root = F.pow(n, p1div4);
+    assertIsSquare(F, root, n);
     return root;
   }
   function sqrt5mod8(Fp, n) {
-    const p5div8 = (Fp.ORDER - _5n) / _8n;
-    const n2 = Fp.mul(n, _2n);
-    const v = Fp.pow(n2, p5div8);
-    const nv = Fp.mul(n, v);
-    const i = Fp.mul(Fp.mul(nv, _2n), v);
-    const root = Fp.mul(nv, Fp.sub(i, Fp.ONE));
-    assertIsSquare(Fp, root, n);
+    const F = Fp;
+    const p5div8 = (F.ORDER - _5n) / _8n;
+    const n2 = F.mul(n, _2n);
+    const v = F.pow(n2, p5div8);
+    const nv = F.mul(n, v);
+    const i = F.mul(F.mul(nv, _2n), v);
+    const root = F.mul(nv, F.sub(i, F.ONE));
+    assertIsSquare(F, root, n);
     return root;
   }
   function sqrt9mod16(P) {
@@ -1449,24 +1570,26 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     const c2 = tn(Fp_, c1);
     const c3 = tn(Fp_, Fp_.neg(c1));
     const c4 = (P + _7n) / _16n;
-    return (Fp, n) => {
-      let tv1 = Fp.pow(n, c4);
-      let tv2 = Fp.mul(tv1, c1);
-      const tv3 = Fp.mul(tv1, c2);
-      const tv4 = Fp.mul(tv1, c3);
-      const e1 = Fp.eql(Fp.sqr(tv2), n);
-      const e2 = Fp.eql(Fp.sqr(tv3), n);
-      tv1 = Fp.cmov(tv1, tv2, e1);
-      tv2 = Fp.cmov(tv4, tv3, e2);
-      const e3 = Fp.eql(Fp.sqr(tv2), n);
-      const root = Fp.cmov(tv1, tv2, e3);
-      assertIsSquare(Fp, root, n);
+    return ((Fp, n) => {
+      const F = Fp;
+      let tv1 = F.pow(n, c4);
+      let tv2 = F.mul(tv1, c1);
+      const tv3 = F.mul(tv1, c2);
+      const tv4 = F.mul(tv1, c3);
+      const e1 = F.eql(F.sqr(tv2), n);
+      const e2 = F.eql(F.sqr(tv3), n);
+      tv1 = F.cmov(tv1, tv2, e1);
+      tv2 = F.cmov(tv4, tv3, e2);
+      const e3 = F.eql(F.sqr(tv2), n);
+      const root = F.cmov(tv1, tv2, e3);
+      assertIsSquare(F, root, n);
       return root;
-    };
+    });
   }
   function tonelliShanks(P) {
     if (P < _3n)
       throw new Error("sqrt is not defined for small field");
+    aoddModulus(P, "tonelliShanks");
     let Q = P - _1n2;
     let S = 0;
     while (Q % _2n === _0n2) {
@@ -1484,36 +1607,38 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     let cc = _Fp.pow(Z, Q);
     const Q1div2 = (Q + _1n2) / _2n;
     return function tonelliSlow(Fp, n) {
-      if (Fp.is0(n))
+      const F = Fp;
+      if (F.is0(n))
         return n;
-      if (FpLegendre(Fp, n) !== 1)
+      if (FpLegendre(F, n) !== 1)
         throw new Error("Cannot find square root");
       let M2 = S;
-      let c = Fp.mul(Fp.ONE, cc);
-      let t = Fp.pow(n, Q);
-      let R = Fp.pow(n, Q1div2);
-      while (!Fp.eql(t, Fp.ONE)) {
-        if (Fp.is0(t))
-          return Fp.ZERO;
+      let c = F.mul(F.ONE, cc);
+      let t = F.pow(n, Q);
+      let R = F.pow(n, Q1div2);
+      while (!F.eql(t, F.ONE)) {
+        if (F.is0(t))
+          throw new Error("Cannot find square root: probably non-prime P");
         let i = 1;
-        let t_tmp = Fp.sqr(t);
-        while (!Fp.eql(t_tmp, Fp.ONE)) {
+        let t_tmp = F.sqr(t);
+        while (!F.eql(t_tmp, F.ONE)) {
           i++;
-          t_tmp = Fp.sqr(t_tmp);
+          t_tmp = F.sqr(t_tmp);
           if (i === M2)
             throw new Error("Cannot find square root");
         }
         const exponent = _1n2 << BigInt(M2 - i - 1);
-        const b = Fp.pow(c, exponent);
+        const b = F.pow(c, exponent);
         M2 = i;
-        c = Fp.sqr(b);
-        t = Fp.mul(t, c);
-        R = Fp.mul(R, b);
+        c = F.sqr(b);
+        t = F.mul(t, c);
+        R = F.mul(R, b);
       }
       return R;
     };
   }
   function FpSqrt(P) {
+    aoddModulus(P, "Fp.sqrt");
     if (P % _4n === _3n)
       return sqrt3mod4;
     if (P % _8n === _5n)
@@ -1542,171 +1667,212 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     "sqrN"
   ];
   function validateField(field) {
-    const initial = {
-      ORDER: "bigint",
-      MASK: "bigint",
-      BYTES: "number",
-      BITS: "number"
-    };
-    const opts = FIELD_FIELDS.reduce((map, val) => {
-      map[val] = "function";
-      return map;
-    }, initial);
-    _validateObject(field, opts);
+    aobject2(field, "field");
+    if (typeof field.ORDER !== "bigint")
+      throw new TypeError('param "ORDER" is invalid: expected bigint, got ' + typeof field.ORDER);
+    asafenumber(field.BYTES, "BYTES");
+    asafenumber(field.BITS, "BITS");
+    for (const name of FIELD_FIELDS)
+      afunction(field[name], "field." + name);
+    if (field.BYTES < 1 || field.BITS < 1)
+      throw new Error("invalid field: expected BYTES/BITS > 0");
+    if (field.ORDER <= _1n2)
+      throw new Error("invalid field: expected ORDER > 1, got " + field.ORDER);
     return field;
   }
-  function FpPow(Fp, num, power) {
-    if (power < _0n2)
-      throw new Error("invalid exponent, negatives unsupported");
-    if (power === _0n2)
-      return Fp.ONE;
-    if (power === _1n2)
-      return num;
-    let p = Fp.ONE;
-    let d = num;
-    while (power > _0n2) {
-      if (power & _1n2)
-        p = Fp.mul(p, d);
-      d = Fp.sqr(d);
-      power >>= _1n2;
-    }
-    return p;
-  }
   function FpInvertBatch(Fp, nums, passZero = false) {
-    const inverted = new Array(nums.length).fill(passZero ? Fp.ZERO : void 0);
+    validateField(Fp);
+    aarray(nums, "nums");
+    abool(passZero, "passZero");
+    const F = Fp;
+    const inverted = new Array(nums.length).fill(passZero ? F.ZERO : void 0);
     const multipliedAcc = nums.reduce((acc, num, i) => {
-      if (Fp.is0(num))
+      if (F.is0(num))
         return acc;
       inverted[i] = acc;
-      return Fp.mul(acc, num);
-    }, Fp.ONE);
-    const invertedAcc = Fp.inv(multipliedAcc);
+      return F.mul(acc, num);
+    }, F.ONE);
+    const invertedAcc = F.inv(multipliedAcc);
     nums.reduceRight((acc, num, i) => {
-      if (Fp.is0(num))
+      if (F.is0(num))
         return acc;
-      inverted[i] = Fp.mul(acc, inverted[i]);
-      return Fp.mul(acc, num);
+      inverted[i] = F.mul(acc, inverted[i]);
+      return F.mul(acc, num);
     }, invertedAcc);
     return inverted;
   }
   function FpLegendre(Fp, n) {
-    const p1mod2 = (Fp.ORDER - _1n2) / _2n;
-    const powered = Fp.pow(n, p1mod2);
-    const yes = Fp.eql(powered, Fp.ONE);
-    const zero = Fp.eql(powered, Fp.ZERO);
-    const no = Fp.eql(powered, Fp.neg(Fp.ONE));
+    validateField(Fp);
+    const F = Fp;
+    aoddModulus(F.ORDER, "FpLegendre");
+    const p1mod2 = (F.ORDER - _1n2) / _2n;
+    const powered = F.pow(n, p1mod2);
+    const yes = F.eql(powered, F.ONE);
+    const zero = F.eql(powered, F.ZERO);
+    const no = F.eql(powered, F.neg(F.ONE));
     if (!yes && !zero && !no)
       throw new Error("invalid Legendre symbol result");
     return yes ? 1 : zero ? 0 : -1;
   }
   function nLength(n, nBitLength) {
     if (nBitLength !== void 0)
-      anumber(nBitLength);
-    const _nBitLength = nBitLength !== void 0 ? nBitLength : n.toString(2).length;
+      anumber2(nBitLength);
+    if (n <= _0n2)
+      throw new Error("invalid n length: expected positive n, got " + n);
+    if (nBitLength !== void 0 && nBitLength < 1)
+      throw new Error("invalid n length: expected positive bit length, got " + nBitLength);
+    const bits = bitLen(n);
+    if (nBitLength !== void 0 && nBitLength < bits)
+      throw new Error(`invalid n length: expected nBitLength (${nBitLength}) >= bitLen(n) (${bits})`);
+    const _nBitLength = nBitLength !== void 0 ? nBitLength : bits;
     const nByteLength = Math.ceil(_nBitLength / 8);
     return { nBitLength: _nBitLength, nByteLength };
   }
-  function Field(ORDER, bitLenOrOpts, isLE = false, opts = {}) {
-    if (ORDER <= _0n2)
-      throw new Error("invalid field: expected ORDER > 0, got " + ORDER);
-    let _nbitLength = void 0;
-    let _sqrt = void 0;
-    let modFromBytes = false;
-    let allowedLengths = void 0;
-    if (typeof bitLenOrOpts === "object" && bitLenOrOpts != null) {
-      if (opts.sqrt || isLE)
-        throw new Error("cannot specify opts in two arguments");
-      const _opts = bitLenOrOpts;
-      if (_opts.BITS)
-        _nbitLength = _opts.BITS;
-      if (_opts.sqrt)
-        _sqrt = _opts.sqrt;
-      if (typeof _opts.isLE === "boolean")
-        isLE = _opts.isLE;
-      if (typeof _opts.modFromBytes === "boolean")
-        modFromBytes = _opts.modFromBytes;
-      allowedLengths = _opts.allowedLengths;
-    } else {
-      if (typeof bitLenOrOpts === "number")
-        _nbitLength = bitLenOrOpts;
-      if (opts.sqrt)
-        _sqrt = opts.sqrt;
+  var FIELD_SQRT = /*  */ new WeakMap();
+  var _Field = class {
+    constructor(ORDER, opts = {}) {
+      __publicField(this, "ORDER");
+      __publicField(this, "BITS");
+      __publicField(this, "BYTES");
+      __publicField(this, "isLE");
+      __publicField(this, "ZERO", _0n2);
+      __publicField(this, "ONE", _1n2);
+      __publicField(this, "_lengths");
+      __publicField(this, "_mod");
+      if (ORDER <= _1n2)
+        throw new Error("invalid field: expected ORDER > 1, got " + ORDER);
+      let _nbitLength = void 0;
+      this.isLE = false;
+      if (opts != null && typeof opts === "object") {
+        if (typeof opts.BITS === "number")
+          _nbitLength = opts.BITS;
+        if (typeof opts.sqrt === "function")
+          Object.defineProperty(this, "sqrt", { value: opts.sqrt, enumerable: true });
+        if (typeof opts.isLE === "boolean")
+          this.isLE = opts.isLE;
+        if (opts.allowedLengths)
+          this._lengths = Object.freeze(opts.allowedLengths.slice());
+        if (typeof opts.modFromBytes === "boolean")
+          this._mod = opts.modFromBytes;
+      }
+      const { nBitLength, nByteLength } = nLength(ORDER, _nbitLength);
+      if (nByteLength > 2048)
+        throw new Error("invalid field: expected ORDER of <= 2048 bytes");
+      this.ORDER = ORDER;
+      this.BITS = nBitLength;
+      this.BYTES = nByteLength;
+      Object.freeze(this);
     }
-    const { nBitLength: BITS, nByteLength: BYTES } = nLength(ORDER, _nbitLength);
-    if (BYTES > 2048)
-      throw new Error("invalid field: expected ORDER of <= 2048 bytes");
-    let sqrtP;
-    const f = Object.freeze({
-      ORDER,
-      isLE,
-      BITS,
-      BYTES,
-      MASK: bitMask(BITS),
-      ZERO: _0n2,
-      ONE: _1n2,
-      allowedLengths,
-      create: (num) => mod(num, ORDER),
-      isValid: (num) => {
-        if (typeof num !== "bigint")
-          throw new Error("invalid field element: expected bigint, got " + typeof num);
-        return _0n2 <= num && num < ORDER;
-      },
-      is0: (num) => num === _0n2,
-      // is valid and invertible
-      isValidNot0: (num) => !f.is0(num) && f.isValid(num),
-      isOdd: (num) => (num & _1n2) === _1n2,
-      neg: (num) => mod(-num, ORDER),
-      eql: (lhs, rhs) => lhs === rhs,
-      sqr: (num) => mod(num * num, ORDER),
-      add: (lhs, rhs) => mod(lhs + rhs, ORDER),
-      sub: (lhs, rhs) => mod(lhs - rhs, ORDER),
-      mul: (lhs, rhs) => mod(lhs * rhs, ORDER),
-      pow: (num, power) => FpPow(f, num, power),
-      div: (lhs, rhs) => mod(lhs * invert(rhs, ORDER), ORDER),
-      // Same as above, but doesn't normalize
-      sqrN: (num) => num * num,
-      addN: (lhs, rhs) => lhs + rhs,
-      subN: (lhs, rhs) => lhs - rhs,
-      mulN: (lhs, rhs) => lhs * rhs,
-      inv: (num) => invert(num, ORDER),
-      sqrt: _sqrt || ((n) => {
-        if (!sqrtP)
-          sqrtP = FpSqrt(ORDER);
-        return sqrtP(f, n);
-      }),
-      toBytes: (num) => isLE ? numberToBytesLE(num, BYTES) : numberToBytesBE(num, BYTES),
-      fromBytes: (bytes, skipValidation = true) => {
-        if (allowedLengths) {
-          if (!allowedLengths.includes(bytes.length) || bytes.length > BYTES) {
-            throw new Error("Field.fromBytes: expected " + allowedLengths + " bytes, got " + bytes.length);
-          }
-          const padded = new Uint8Array(BYTES);
-          padded.set(bytes, isLE ? 0 : padded.length - bytes.length);
-          bytes = padded;
+    create(num) {
+      return mod(num, this.ORDER);
+    }
+    isValid(num) {
+      if (typeof num !== "bigint")
+        throw new TypeError("invalid field element: expected bigint, got " + typeof num);
+      return _0n2 <= num && num < this.ORDER;
+    }
+    is0(num) {
+      return num === _0n2;
+    }
+    // is valid and invertible
+    isValidNot0(num) {
+      return !this.is0(num) && this.isValid(num);
+    }
+    isOdd(num) {
+      return (num & _1n2) === _1n2;
+    }
+    neg(num) {
+      return mod(-num, this.ORDER);
+    }
+    eql(lhs, rhs) {
+      return lhs === rhs;
+    }
+    sqr(num) {
+      return mod(num * num, this.ORDER);
+    }
+    add(lhs, rhs) {
+      return mod(lhs + rhs, this.ORDER);
+    }
+    sub(lhs, rhs) {
+      return mod(lhs - rhs, this.ORDER);
+    }
+    mul(lhs, rhs) {
+      return mod(lhs * rhs, this.ORDER);
+    }
+    pow(num, power) {
+      return pow(num, power, this.ORDER);
+    }
+    div(lhs, rhs) {
+      return mod(lhs * invert(rhs, this.ORDER), this.ORDER);
+    }
+    // Same as above, but doesn't normalize
+    sqrN(num) {
+      return num * num;
+    }
+    addN(lhs, rhs) {
+      return lhs + rhs;
+    }
+    subN(lhs, rhs) {
+      return lhs - rhs;
+    }
+    mulN(lhs, rhs) {
+      return lhs * rhs;
+    }
+    inv(num) {
+      return invert(num, this.ORDER);
+    }
+    sqrt(num) {
+      let sqrt = FIELD_SQRT.get(this);
+      if (!sqrt)
+        FIELD_SQRT.set(this, sqrt = FpSqrt(this.ORDER));
+      return sqrt(this, num);
+    }
+    toBytes(num) {
+      return this.isLE ? numberToBytesLE(num, this.BYTES) : numberToBytesBE(num, this.BYTES);
+    }
+    fromBytes(bytes, skipValidation = false) {
+      abytes2(bytes);
+      const { _lengths: allowedLengths, BYTES, isLE, ORDER, _mod: modFromBytes } = this;
+      if (allowedLengths) {
+        if (bytes.length < 1 || !allowedLengths.includes(bytes.length) || bytes.length > BYTES) {
+          throw new Error("Field.fromBytes: expected " + allowedLengths + " bytes, got " + bytes.length);
         }
-        if (bytes.length !== BYTES)
-          throw new Error("Field.fromBytes: expected " + BYTES + " bytes, got " + bytes.length);
-        let scalar = isLE ? bytesToNumberLE(bytes) : bytesToNumberBE(bytes);
-        if (modFromBytes)
-          scalar = mod(scalar, ORDER);
-        if (!skipValidation) {
-          if (!f.isValid(scalar))
-            throw new Error("invalid field element: outside of range 0..ORDER");
-        }
-        return scalar;
-      },
-      // TODO: we don't need it here, move out to separate fn
-      invertBatch: (lst) => FpInvertBatch(f, lst),
-      // We can't move this out because Fp6, Fp12 implement it
-      // and it's unclear what to return in there.
-      cmov: (a, b, c) => c ? b : a
-    });
-    return Object.freeze(f);
+        const padded = new Uint8Array(BYTES);
+        padded.set(bytes, isLE ? 0 : padded.length - bytes.length);
+        bytes = padded;
+      }
+      if (bytes.length !== BYTES)
+        throw new Error("Field.fromBytes: expected " + BYTES + " bytes, got " + bytes.length);
+      let scalar = isLE ? bytesToNumberLE(bytes) : bytesToNumberBE(bytes);
+      if (modFromBytes)
+        scalar = mod(scalar, ORDER);
+      if (!skipValidation) {
+        if (!this.isValid(scalar))
+          throw new Error("invalid field element: outside of range 0..ORDER");
+      }
+      return scalar;
+    }
+    // TODO: we don't need it here, move out to separate fn
+    invertBatch(lst) {
+      return FpInvertBatch(this, lst, true);
+    }
+    // We can't move this out because Fp6, Fp12 implement it
+    // and it's unclear what to return in there.
+    cmov(a, b, condition) {
+      abool(condition, "condition");
+      return condition ? b : a;
+    }
+  };
+  function Field(ORDER, opts = {}) {
+    Object.freeze(_Field.prototype);
+    return new _Field(ORDER, opts);
   }
   function getFieldBytesLength(fieldOrder) {
     if (typeof fieldOrder !== "bigint")
       throw new Error("field order must be bigint");
-    const bitLength = fieldOrder.toString(2).length;
+    if (fieldOrder <= _1n2)
+      throw new Error("field order must be greater than 1");
+    const bitLength = bitLen(fieldOrder - _1n2);
     return Math.ceil(bitLength / 8);
   }
   function getMinHashLength(fieldOrder) {
@@ -1714,262 +1880,363 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     return length + Math.ceil(length / 2);
   }
   function mapHashToField(key, fieldOrder, isLE = false) {
+    abytes2(key);
     const len = key.length;
     const fieldLen = getFieldBytesLength(fieldOrder);
-    const minLen = getMinHashLength(fieldOrder);
-    if (len < 16 || len < minLen || len > 1024)
+    const minLen = Math.max(getMinHashLength(fieldOrder), 16);
+    if (len < minLen || len > 1024)
       throw new Error("expected " + minLen + "-1024 bytes of input, got " + len);
     const num = isLE ? bytesToNumberLE(key) : bytesToNumberBE(key);
     const reduced = mod(num, fieldOrder - _1n2) + _1n2;
     return isLE ? numberToBytesLE(reduced, fieldLen) : numberToBytesBE(reduced, fieldLen);
   }
 
-  // node_modules/@noble/curves/esm/abstract/curve.js
+  // node_modules/@noble/curves/abstract/curve.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
-  var _0n3 = BigInt(0);
-  var _1n3 = BigInt(1);
-  function negateCt(condition, item) {
-    const neg = item.negate();
-    return condition ? neg : item;
+  var _0n3 = /*  */ BigInt(0);
+  var _1n3 = /*  */ BigInt(1);
+  var _4n2 = /*  */ BigInt(4);
+  var BLIND_BYTES = 16;
+  var BLIND_BITS = 128;
+  var FW_WINDOW = 5;
+  var TABLE_BYTES_MAX = /*  */ (() => 2 ** 31)();
+  function validatePointCons(Point) {
+    const pc = Point;
+    if (typeof pc !== "function")
+      throw new TypeError('"Point" expected constructor, got type=' + typeof Point);
+    afunction(pc.fromAffine, "Point.fromAffine");
+    afunction(pc.fromBytes, "Point.fromBytes");
+    afunction(pc.fromHex, "Point.fromHex");
+    aobject2(pc.BASE, "Point.BASE");
+    aobject2(pc.ZERO, "Point.ZERO");
+    validateField(pc.Fp);
+    validateField(pc.Fn);
   }
   function normalizeZ(c, points) {
+    validatePointCons(c);
+    validateMSMPoints(points, c);
     const invertedZs = FpInvertBatch(c.Fp, points.map((p) => p.Z));
     return points.map((p, i) => c.fromAffine(p.toAffine(invertedZs[i])));
   }
-  function validateW(W, bits) {
-    if (!Number.isSafeInteger(W) || W <= 0 || W > bits)
-      throw new Error("invalid window size, expected [1.." + bits + "], got W=" + W);
+  function validateW(W, bits, min = 1) {
+    if (!Number.isSafeInteger(W) || W < min || W > bits)
+      throw new Error("invalid window size, expected [" + min + ".." + bits + "], got W=" + W);
   }
-  function calcWOpts(W, scalarBits) {
-    validateW(W, scalarBits);
-    const windows = Math.ceil(scalarBits / W) + 1;
-    const windowSize = 2 ** (W - 1);
-    const maxNumber = 2 ** W;
-    const mask = bitMask(W);
-    const shiftBy = BigInt(W);
-    return { windows, windowSize, mask, maxNumber, shiftBy };
+  function validateTableBytes(numPoints, fpBytes) {
+    const bytes = numPoints * (4 * fpBytes + 128);
+    if (bytes > TABLE_BYTES_MAX)
+      throw new Error("invalid window size: table would need ~" + Math.ceil(bytes / 2 ** 20) + " MiB, max " + TABLE_BYTES_MAX / 2 ** 20 + " MiB");
   }
-  function calcOffsets(n, window2, wOpts) {
-    const { windowSize, mask, maxNumber, shiftBy } = wOpts;
-    let wbits = Number(n & mask);
-    let nextN = n >> shiftBy;
-    if (wbits > windowSize) {
-      wbits -= maxNumber;
-      nextN += _1n3;
+  function probeRandomBytes(randomBytes4, length) {
+    if (randomBytes4 === void 0)
+      return void 0;
+    afunction(randomBytes4, "randomBytes");
+    try {
+      const probe = randomBytes4(length);
+      if (!isBytes2(probe) || probe.length !== length)
+        return void 0;
+    } catch {
+      return void 0;
     }
-    const offsetStart = window2 * windowSize;
-    const offset = offsetStart + Math.abs(wbits) - 1;
-    const isZero = wbits === 0;
-    const isNeg = wbits < 0;
-    const isNegF = window2 % 2 !== 0;
-    const offsetF = offsetStart;
-    return { nextN, offset, isZero, isNeg, isNegF, offsetF };
+    return randomBytes4;
   }
   function validateMSMPoints(points, c) {
-    if (!Array.isArray(points))
-      throw new Error("array expected");
+    aarray(points, "points");
     points.forEach((p, i) => {
       if (!(p instanceof c))
         throw new Error("invalid point at index " + i);
     });
   }
-  function validateMSMScalars(scalars, field) {
+  function validateMSMScalars(scalars, field, maxScalar) {
     if (!Array.isArray(scalars))
       throw new Error("array of scalars expected");
     scalars.forEach((s, i) => {
-      if (!field.isValid(s))
+      const ok = maxScalar === void 0 ? field.isValid(s) : isPosBig(s) && s < maxScalar;
+      if (!ok)
         throw new Error("invalid scalar at index " + i);
     });
   }
-  var pointPrecomputes = /*  */ new WeakMap();
   var pointWindowSizes = /*  */ new WeakMap();
-  function getW(P) {
+  function getWindowSize(P) {
     return pointWindowSizes.get(P) || 1;
   }
-  function assert0(n) {
-    if (n !== _0n3)
-      throw new Error("invalid wNAF");
+  function oddMultiples(p, size) {
+    const dbl = p.double();
+    const t = [p];
+    for (let j = 1; j < size; j++)
+      t.push(t[j - 1].add(dbl));
+    return t;
   }
-  var wNAF = class {
+  function wnafDigits(n, W) {
+    const size = 2 ** W;
+    const half = size / 2;
+    const mask = BigInt(size - 1);
+    const d = [];
+    while (n > _0n3) {
+      let w = 0;
+      if (n & _1n3) {
+        w = Number(n & mask);
+        if (w >= half)
+          w -= size;
+        n -= BigInt(w);
+      }
+      d.push(w);
+      n >>= _1n3;
+    }
+    return d;
+  }
+  function signedWindowDigits(n, W, windows) {
+    const size = 2 ** W;
+    const half = size / 2;
+    const mask = BigInt(size - 1);
+    const shiftBy = BigInt(W);
+    const d = [];
+    for (let w = 0; w < windows; w++) {
+      let v = Number(n & mask);
+      n >>= shiftBy;
+      if (v > half) {
+        v -= size;
+        n += _1n3;
+      }
+      d.push(v);
+    }
+    if (n !== _0n3)
+      throw new Error("invalid wnaf");
+    return d;
+  }
+  function wnafWalk(zero, tables, digits) {
+    let max = 0;
+    for (const d of digits)
+      max = Math.max(max, d.length);
+    let acc = zero;
+    for (let bit = max - 1; bit >= 0; bit--) {
+      if (bit !== max - 1)
+        acc = acc.double();
+      for (let i = 0; i < digits.length; i++) {
+        const w = digits[i][bit];
+        if (w) {
+          const item = tables[i][Math.abs(w) - 1 >> 1];
+          acc = acc.add(w < 0 ? item.negate() : item);
+        }
+      }
+    }
+    return acc;
+  }
+  var ScalarMultiplier = class {
     // Parametrized with a given Point class (not individual point)
-    constructor(Point, bits) {
+    constructor(Point, randomBytes4) {
+      __publicField(this, "Point");
+      __publicField(this, "BASE");
+      __publicField(this, "ZERO");
+      __publicField(this, "randomBytes");
+      __publicField(this, "wnafPrecomputes", /*  */ new WeakMap());
+      __publicField(this, "baseCanBeBlinded");
+      __publicField(this, "bits");
+      validatePointCons(Point);
+      this.randomBytes = probeRandomBytes(randomBytes4, BLIND_BYTES);
+      this.Point = Point;
       this.BASE = Point.BASE;
       this.ZERO = Point.ZERO;
-      this.Fn = Point.Fn;
-      this.bits = bits;
-    }
-    // non-const time multiplication ladder
-    _unsafeLadder(elm, n, p = this.ZERO) {
-      let d = elm;
-      while (n > _0n3) {
-        if (n & _1n3)
-          p = p.add(d);
-        d = d.double();
-        n >>= _1n3;
-      }
-      return p;
+      this.bits = Point.Fn.BITS;
     }
     /**
-     * Creates a wNAF precomputation window. Used for caching.
-     * Default window size is set by `utils.precompute()` and is equal to 8.
-     * Number of precomputed points depends on the curve size:
-     * 2^(𝑊−1) * (Math.ceil(𝑛 / 𝑊) + 1), where:
-     * - 𝑊 is the window size
-     * - 𝑛 is the bitlength of the curve order.
-     * For a 256-bit curve and window size 8, the number of precomputed points is 128 * 33 = 4224.
-     * @param point Point instance
-     * @param W window size
-     * @returns precomputed point tables flattened to a single array
+     * Creates a signed fixed-window wNAF precomputation table: for every window w, the
+     * multiples `[1..2^(W−1)]⋅2^(w⋅W)⋅P`, flattened. All doublings are baked into the table,
+     * so cached multiplication is additions-only. `windows = ceil(bits/W) + 1`: the extra
+     * window absorbs the final carry of signed-digit recoding.
+     * For a 256-bit curve and W=6, the table is 44⋅32 = 1408 points.
+     * @param point - Point instance
+     * @param W - window size
+     * @param bits - scalar bitlength the table must cover
      */
-    precomputeWindow(point, W) {
-      const { windows, windowSize } = calcWOpts(W, this.bits);
-      const points = [];
-      let p = point;
-      let base = p;
-      for (let window2 = 0; window2 < windows; window2++) {
-        base = p;
-        points.push(base);
-        for (let i = 1; i < windowSize; i++) {
-          base = base.add(p);
-          points.push(base);
+    buildWnafTable(point, W, bits) {
+      const windows = Math.ceil(bits / W) + 1;
+      const half = 2 ** (W - 1);
+      const comp = [];
+      let base = point;
+      for (let w = 0; w < windows; w++) {
+        let acc = base;
+        for (let i = 0; i < half; i++) {
+          comp.push(acc);
+          acc = acc.add(base);
         }
-        p = base.double();
+        base = comp[comp.length - 1].double();
       }
-      return points;
+      return { W, bits, windows, comp };
     }
     /**
-     * Implements ec multiplication using precomputed tables and w-ary non-adjacent form.
-     * More compact implementation:
-     * https://github.com/paulmillr/noble-secp256k1/blob/47cb1669b6e506ad66b35fe7d76132ae97465da2/index.ts#L502-L541
+     * Implements ec multiplication using precomputed signed fixed-window wNAF tables.
+     * Constant-time: fixed window count with one table addition per window — zero digits feed
+     * the fake accumulator — and no doublings; the lookup scans the whole window slice.
+     * Scalar bounds are validated by the public entry points ({@link ScalarMultiplier.mulCT},
+     * {@link ScalarMultiplier.mulCTBlinded}, {@link ScalarMultiplier.mulUnsafe});
+     * signedWindowDigits throws if `n` exceeds the table.
      * @returns real and fake (for const-time) points
      */
-    wNAF(W, precomputes, n) {
-      if (!this.Fn.isValid(n))
-        throw new Error("invalid scalar");
+    wnafCachedCT(precomputes, n) {
+      const { W, windows, comp } = precomputes;
+      const half = 2 ** (W - 1);
+      const digits = signedWindowDigits(n, W, windows);
       let p = this.ZERO;
       let f = this.BASE;
-      const wo = calcWOpts(W, this.bits);
-      for (let window2 = 0; window2 < wo.windows; window2++) {
-        const { nextN, offset, isZero, isNeg, isNegF, offsetF } = calcOffsets(n, window2, wo);
-        n = nextN;
-        if (isZero) {
-          f = f.add(negateCt(isNegF, precomputes[offsetF]));
-        } else {
-          p = p.add(negateCt(isNeg, precomputes[offset]));
-        }
+      for (let w = 0; w < windows; w++) {
+        const digit = digits[w];
+        const start = w * half;
+        const idx = Math.abs(digit) - 1;
+        let sel = comp[start];
+        for (let i = 1; i < half; i++)
+          sel = i === idx ? comp[start + i] : sel;
+        const neg = sel.negate();
+        if (digit === 0)
+          f = f.add(comp[start]);
+        else
+          p = p.add(digit < 0 ? neg : sel);
       }
-      assert0(n);
       return { p, f };
     }
-    /**
-     * Implements ec unsafe (non const-time) multiplication using precomputed tables and w-ary non-adjacent form.
-     * @param acc accumulator point to add result of multiplication
-     * @returns point
-     */
-    wNAFUnsafe(W, precomputes, n, acc = this.ZERO) {
-      const wo = calcWOpts(W, this.bits);
-      for (let window2 = 0; window2 < wo.windows; window2++) {
-        if (n === _0n3)
-          break;
-        const { nextN, offset, isZero, isNeg } = calcOffsets(n, window2, wo);
-        n = nextN;
-        if (isZero) {
-          continue;
-        } else {
-          const item = precomputes[offset];
-          acc = acc.add(isNeg ? item.negate() : item);
-        }
-      }
-      assert0(n);
-      return acc;
-    }
-    getPrecomputes(W, point, transform) {
-      let comp = pointPrecomputes.get(point);
+    // Cache key is point identity plus (W, bits); at most two entries exist per point (public-width
+    // `Fn.BITS` and blinded `Fn.BITS + BLIND_BITS`). Callers must not reuse the same point with
+    // incompatible `transform(...)` layouts and expect a separate cache entry.
+    getWnafPrecomputes(W, point, bits, transform) {
+      let entries = this.wnafPrecomputes.get(point);
+      let comp = entries?.find((entry) => entry.W === W && entry.bits === bits);
       if (!comp) {
-        comp = this.precomputeWindow(point, W);
-        if (W !== 1) {
-          if (typeof transform === "function")
-            comp = transform(comp);
-          pointPrecomputes.set(point, comp);
+        comp = this.buildWnafTable(point, W, bits);
+        if (typeof transform === "function")
+          comp = { ...comp, comp: transform(comp.comp) };
+        if (!entries) {
+          entries = [];
+          this.wnafPrecomputes.set(point, entries);
         }
+        entries.push(comp);
       }
       return comp;
     }
-    cached(point, scalar, transform) {
-      const W = getW(point);
-      return this.wNAF(W, this.getPrecomputes(W, point, transform), scalar);
+    assertPoint(point) {
+      if (!(point instanceof this.Point))
+        throw new TypeError('"point" expected Point instance, got type=' + typeof point);
     }
-    unsafe(point, scalar, transform, prev) {
-      const W = getW(point);
+    // Shared prologue of the constant-time entry points. Rejects scalar 0: in key/signature-style
+    // callers a zero scalar means broken upstream plumbing, and concrete Points already reject it.
+    // Uses inRange instead of Fn.isValidNot0: validateField() only certifies the arithmetic subset.
+    validateMulInput(point, scalar) {
+      this.assertPoint(point);
+      if (!inRange(scalar, _1n3, this.Point.Fn.ORDER))
+        throw new Error("invalid scalar");
+    }
+    // Constant-time dispatch shared by mulCT / mulCTBlinded. Un-precomputed points (W===1, e.g.
+    // ECDH peer keys) skip building a throwaway cached table in favor of a small fixed-window
+    // multiply. `n` must be < 2^bits.
+    runCT(point, n, bits, transform) {
+      const W = getWindowSize(point);
       if (W === 1)
-        return this._unsafeLadder(point, scalar, prev);
-      return this.wNAFUnsafe(W, this.getPrecomputes(W, point, transform), scalar, prev);
+        return this.fixedWindowCT(point, n, bits);
+      return this.wnafCachedCT(this.getWnafPrecomputes(W, point, bits, transform), n);
     }
-    // We calculate precomputes for elliptic curve point multiplication
-    // using windowed method. This specifies window size and
-    // stores precomputed values. Usually only base point would be precomputed.
-    createCache(P, W) {
+    mulCT(point, scalar, transform) {
+      this.validateMulInput(point, scalar);
+      return this.runCT(point, scalar, this.bits, transform);
+    }
+    mulCTBlinded(point, scalar, transform) {
+      this.validateMulInput(point, scalar);
+      if (this.randomBytes === void 0)
+        throw new Error("randomBytes is required for scalar blinding");
+      const bits = this.Point.Fn.BITS + BLIND_BITS;
+      const blind = this.randomBytes(BLIND_BYTES);
+      if (!isBytes2(blind) || blind.length !== BLIND_BYTES)
+        throw new Error("randomBytes returned invalid byte array");
+      blind[0] = blind[0] & 63 | 128;
+      const n = scalar + bytesToNumberBE(blind) * this.Point.Fn.ORDER;
+      return this.runCT(point, n, bits, transform);
+    }
+    /**
+     * Constant-time multiplication `n*point` for an un-precomputed point, via a small fixed window.
+     * A cached wNAF table only pays off when reused; a flat 2^FW_WINDOW table (`size-1` adds) is
+     * far cheaper to build for a single use. The point-operation sequence is independent of `n`:
+     * build the table, then per window exactly FW_WINDOW doublings, a data-oblivious scan over
+     * every table entry, and one addition (adds the identity when the window digit is 0 — never
+     * skipped).
+     *
+     * `n` must be `< 2^bits`. Assumes complete addition (adding the identity costs the same as any
+     * add), which holds for the Weierstrass/Edwards point types used here. The table is left in
+     * projective form (no normalizeZ): normalizing this small a table costs more than the
+     * mixed-add savings it would buy for a single multiply.
+     * @returns real point `p`; `f` duplicates it only to match {@link wnafCachedCT}'s return shape
+     * (this path needs no fake accumulator — its op-count is already scalar-independent).
+     */
+    fixedWindowCT(point, n, bits) {
+      const W = FW_WINDOW;
+      const size = 1 << W;
+      const mask = bitMask(W);
+      const table = new Array(size);
+      table[0] = this.ZERO;
+      for (let i = 1; i < size; i++)
+        table[i] = table[i - 1].add(point);
+      const windows = Math.ceil(bits / W);
+      let acc = this.ZERO;
+      for (let window2 = windows - 1; window2 >= 0; window2--) {
+        if (window2 !== windows - 1)
+          for (let d = 0; d < W; d++)
+            acc = acc.double();
+        const digit = Number(n >> BigInt(window2 * W) & mask);
+        let sel = table[0];
+        for (let i = 1; i < size; i++)
+          sel = i === digit ? table[i] : sel;
+        acc = acc.add(sel);
+      }
+      return { p: acc, f: acc };
+    }
+    shouldBlind(point, cofactor) {
+      if (this.randomBytes === void 0)
+        return false;
+      if (cofactor === _1n3)
+        return true;
+      if (point !== this.BASE)
+        return false;
+      if (this.baseCanBeBlinded === void 0)
+        this.baseCanBeBlinded = this.mulUnsafe(this.BASE, this.Point.Fn.ORDER).is0();
+      return this.baseCanBeBlinded;
+    }
+    mulSecret(point, scalar, cofactor, transform) {
+      return this.shouldBlind(point, cofactor) ? this.mulCTBlinded(point, scalar, transform) : this.mulCT(point, scalar, transform);
+    }
+    mulUnsafe(point, scalar, transform) {
+      this.assertPoint(point);
+      if (!isPosBig(scalar))
+        throw new Error("invalid scalar");
+      const W = getWindowSize(point);
+      if (W === 1 || scalar >= this.Point.Fn.ORDER)
+        return mulAddUnsafe(this.Point, [point], [scalar], true);
+      const precomputes = this.getWnafPrecomputes(W, point, this.bits, transform);
+      return this.wnafCachedCT(precomputes, scalar).p;
+    }
+    // Remembers the window size used for precomputed wNAF multiplication of the given point
+    // and drops any previously built tables. Usually only the base point is precomputed.
+    // W=1 resets the point to the un-precomputed (table-less) paths.
+    // W is additionally capped so tables stay under ~2 GiB ({@link TABLE_BYTES_MAX}).
+    setWindowSize(point, W) {
+      this.assertPoint(point);
       validateW(W, this.bits);
-      pointWindowSizes.set(P, W);
-      pointPrecomputes.delete(P);
+      const windows = Math.ceil((this.bits + BLIND_BITS) / W) + 1;
+      validateTableBytes(windows * 2 ** (W - 1), this.Point.Fp.BYTES);
+      pointWindowSizes.set(point, W);
+      this.wnafPrecomputes.delete(point);
     }
-    hasCache(elm) {
-      return getW(elm) !== 1;
+    // True when a window size is set: tables themselves are built lazily on first multiply.
+    hasWindowSize(point) {
+      return getWindowSize(point) !== 1;
     }
   };
-  function mulEndoUnsafe(Point, point, k1, k2) {
-    let acc = point;
-    let p1 = Point.ZERO;
-    let p2 = Point.ZERO;
-    while (k1 > _0n3 || k2 > _0n3) {
-      if (k1 & _1n3)
-        p1 = p1.add(acc);
-      if (k2 & _1n3)
-        p2 = p2.add(acc);
-      acc = acc.double();
-      k1 >>= _1n3;
-      k2 >>= _1n3;
-    }
-    return { p1, p2 };
-  }
-  function pippenger(c, fieldN, points, scalars) {
+  function mulAddUnsafe(c, points, scalars, allowOversized = false) {
+    validatePointCons(c);
     validateMSMPoints(points, c);
-    validateMSMScalars(scalars, fieldN);
-    const plength = points.length;
-    const slength = scalars.length;
-    if (plength !== slength)
+    abool(allowOversized, "allowOversized");
+    validateMSMScalars(scalars, c.Fn, allowOversized ? c.Fn.ORDER ** _4n2 : void 0);
+    if (points.length !== scalars.length)
       throw new Error("arrays of points and scalars must have equal length");
-    const zero = c.ZERO;
-    const wbits = bitLen(BigInt(plength));
-    let windowSize = 1;
-    if (wbits > 12)
-      windowSize = wbits - 3;
-    else if (wbits > 4)
-      windowSize = wbits - 2;
-    else if (wbits > 0)
-      windowSize = 2;
-    const MASK = bitMask(windowSize);
-    const buckets = new Array(Number(MASK) + 1).fill(zero);
-    const lastBits = Math.floor((fieldN.BITS - 1) / windowSize) * windowSize;
-    let sum = zero;
-    for (let i = lastBits; i >= 0; i -= windowSize) {
-      buckets.fill(zero);
-      for (let j = 0; j < slength; j++) {
-        const scalar = scalars[j];
-        const wbits2 = Number(scalar >> BigInt(i) & MASK);
-        buckets[wbits2] = buckets[wbits2].add(points[j]);
-      }
-      let resI = zero;
-      for (let j = buckets.length - 1, sumI = zero; j > 0; j--) {
-        sumI = sumI.add(buckets[j]);
-        resI = resI.add(sumI);
-      }
-      sum = sum.add(resI);
-      if (i !== 0)
-        for (let j = 0; j < windowSize; j++)
-          sum = sum.double();
-    }
-    return sum;
+    const tables = points.map((p) => oddMultiples(p, 4));
+    const digits = scalars.map((n) => wnafDigits(n, 4));
+    return wnafWalk(c.ZERO, tables, digits);
   }
   function createField(order, field, isLE) {
     if (field) {
@@ -1981,14 +2248,17 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       return Field(order, { isLE });
     }
   }
-  function _createCurveFields(type, CURVE, curveOpts = {}, FpFnLE) {
+  function createCurveFields(type, CURVE, curveOpts = {}, FpFnLE) {
+    if (type !== "weierstrass" && type !== "edwards")
+      throw new Error('expected curve type "weierstrass" or "edwards"');
     if (FpFnLE === void 0)
       FpFnLE = type === "edwards";
     if (!CURVE || typeof CURVE !== "object")
       throw new Error(`expected valid ${type} CURVE object`);
+    validateObject(curveOpts);
     for (const p of ["p", "n", "h"]) {
       const val = CURVE[p];
-      if (!(typeof val === "bigint" && val > _0n3))
+      if (!(isPosBig(val) && val !== _0n3))
         throw new Error(`CURVE.${p} must be positive bigint`);
     }
     const Fp = createField(CURVE.p, curveOpts.Fp, FpFnLE);
@@ -2002,58 +2272,109 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     CURVE = Object.freeze(Object.assign({}, CURVE));
     return { CURVE, Fp, Fn };
   }
+  function createKeygen(randomSecretKey, getPublicKey) {
+    return function keygen(seed) {
+      const secretKey = randomSecretKey(seed);
+      return { secretKey, publicKey: getPublicKey(secretKey) };
+    };
+  }
 
-  // node_modules/@noble/curves/esm/abstract/weierstrass.js
+  // node_modules/@noble/hashes/hmac.js
+  var _HMAC = class {
+    constructor(hash, key) {
+      __publicField(this, "oHash");
+      __publicField(this, "iHash");
+      __publicField(this, "blockLen");
+      __publicField(this, "outputLen");
+      __publicField(this, "canXOF", false);
+      __publicField(this, "finished", false);
+      __publicField(this, "destroyed", false);
+      ahash(hash);
+      abytes(key, void 0, "key");
+      this.iHash = hash.create();
+      if (typeof this.iHash.update !== "function")
+        throw new Error("expected Hash instance");
+      this.blockLen = this.iHash.blockLen;
+      this.outputLen = this.iHash.outputLen;
+      const blockLen = this.blockLen;
+      const pad = new Uint8Array(blockLen);
+      pad.set(key.length > blockLen ? hash.create().update(key).digest() : key);
+      for (let i = 0; i < pad.length; i++)
+        pad[i] ^= 54;
+      this.iHash.update(pad);
+      this.oHash = hash.create();
+      for (let i = 0; i < pad.length; i++)
+        pad[i] ^= 54 ^ 92;
+      this.oHash.update(pad);
+      clean(pad);
+    }
+    update(buf) {
+      aexists(this);
+      this.iHash.update(buf);
+      return this;
+    }
+    digestInto(out) {
+      aexists(this);
+      aoutput(out, this);
+      this.finished = true;
+      const buf = out.subarray(0, this.outputLen);
+      this.iHash.digestInto(buf);
+      this.oHash.update(buf);
+      this.oHash.digestInto(buf);
+      this.destroy();
+    }
+    digest() {
+      const out = new Uint8Array(this.oHash.outputLen);
+      this.digestInto(out);
+      return out;
+    }
+    _cloneInto(to) {
+      to || (to = Object.create(Object.getPrototypeOf(this), {}));
+      const { oHash, iHash, finished, destroyed, blockLen, outputLen, canXOF } = this;
+      to = to;
+      to.finished = finished;
+      to.destroyed = destroyed;
+      to.blockLen = blockLen;
+      to.outputLen = outputLen;
+      to.canXOF = canXOF;
+      to.oHash = oHash._cloneInto(to.oHash);
+      to.iHash = iHash._cloneInto(to.iHash);
+      return to;
+    }
+    clone() {
+      return this._cloneInto();
+    }
+    destroy() {
+      this.destroyed = true;
+      this.oHash.destroy();
+      this.iHash.destroy();
+    }
+  };
+  var hmac = /*  */ (() => {
+    const hmac_ = ((hash, key, message) => new _HMAC(hash, key).update(message).digest());
+    hmac_.create = (hash, key) => new _HMAC(hash, key);
+    return hmac_;
+  })();
+
+  // node_modules/@noble/curves/abstract/der.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
-  var divNearest = (num, den) => (num + (num >= 0 ? den : -den) / _2n2) / den;
-  function _splitEndoScalar(k, basis, n) {
-    const [[a1, b1], [a2, b2]] = basis;
-    const c1 = divNearest(b2 * k, n);
-    const c2 = divNearest(-b1 * k, n);
-    let k1 = k - c1 * a1 - c2 * a2;
-    let k2 = -c1 * b1 - c2 * b2;
-    const k1neg = k1 < _0n4;
-    const k2neg = k2 < _0n4;
-    if (k1neg)
-      k1 = -k1;
-    if (k2neg)
-      k2 = -k2;
-    const MAX_NUM = bitMask(Math.ceil(bitLen(n) / 2)) + _1n4;
-    if (k1 < _0n4 || k1 >= MAX_NUM || k2 < _0n4 || k2 >= MAX_NUM) {
-      throw new Error("splitScalar (endomorphism): failed, k=" + k);
-    }
-    return { k1neg, k1, k2neg, k2 };
-  }
-  function validateSigFormat(format) {
-    if (!["compact", "recovered", "der"].includes(format))
-      throw new Error('Signature format must be "compact", "recovered", or "der"');
-    return format;
-  }
-  function validateSigOpts(opts, def) {
-    const optsn = {};
-    for (let optName of Object.keys(def)) {
-      optsn[optName] = opts[optName] === void 0 ? def[optName] : opts[optName];
-    }
-    _abool2(optsn.lowS, "lowS");
-    _abool2(optsn.prehash, "prehash");
-    if (optsn.format !== void 0)
-      validateSigFormat(optsn.format);
-    return optsn;
-  }
+  var _0n4 = /*  */ BigInt(0);
   var DERErr = class extends Error {
     constructor(m = "") {
       super(m);
     }
   };
-  var DER = {
+  var _DER = {
     // asn.1 DER encoding utils
     Err: DERErr,
     // Basic building block is TLV (Tag-Length-Value)
     _tlv: {
       encode: (tag, data) => {
-        const { Err: E } = DER;
-        if (tag < 0 || tag > 256)
+        const { Err: E } = _DER;
+        asafenumber(tag, "tag");
+        if (tag < 0 || tag > 255)
           throw new E("tlv.encode: wrong tag");
+        astring(data, "data");
         if (data.length & 1)
           throw new E("tlv.encode: unpadded data");
         const dataLen = data.length / 2;
@@ -2066,10 +2387,11 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       },
       // v - value, l - left bytes (unparsed)
       decode(tag, data) {
-        const { Err: E } = DER;
+        const { Err: E } = _DER;
+        data = abytes2(data, void 0, "DER data");
         let pos = 0;
-        if (tag < 0 || tag > 256)
-          throw new E("tlv.encode: wrong tag");
+        if (tag < 0 || tag > 255)
+          throw new E("tlv.decode: wrong tag");
         if (data.length < 2 || data[pos++] !== tag)
           throw new E("tlv.decode: wrong tlv");
         const first = data[pos++];
@@ -2106,7 +2428,8 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     // - if next byte doesn't have a flag, leading zero is not allowed (minimal encoding)
     _int: {
       encode(num) {
-        const { Err: E } = DER;
+        const { Err: E } = _DER;
+        abignumber(num);
         if (num < _0n4)
           throw new E("integer: negative integers are not allowed");
         let hex = numberToHexUnpadded(num);
@@ -2117,17 +2440,24 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         return hex;
       },
       decode(data) {
-        const { Err: E } = DER;
+        const { Err: E } = _DER;
+        if (data.length < 1)
+          throw new E("invalid signature integer: empty");
         if (data[0] & 128)
           throw new E("invalid signature integer: negative");
-        if (data[0] === 0 && !(data[1] & 128))
+        if (data.length > 1 && data[0] === 0 && !(data[1] & 128))
           throw new E("invalid signature integer: unnecessary leading zero");
         return bytesToNumberBE(data);
       }
     },
-    toSig(hex) {
-      const { Err: E, _int: int, _tlv: tlv } = DER;
-      const data = ensureBytes("signature", hex);
+    toSig(bytes, maxScalarBytes) {
+      const { Err: E, _int: int, _tlv: tlv } = _DER;
+      if (maxScalarBytes !== void 0) {
+        asafenumber(maxScalarBytes, "maxScalarBytes");
+        if (maxScalarBytes < 1)
+          throw new E("invalid signature: maxScalarBytes must be positive");
+      }
+      const data = abytes2(bytes, void 0, "signature");
       const { v: seqBytes, l: seqLeftBytes } = tlv.decode(48, data);
       if (seqLeftBytes.length)
         throw new E("invalid signature: left bytes after parsing");
@@ -2135,81 +2465,125 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       const { v: sBytes, l: sLeftBytes } = tlv.decode(2, rLeftBytes);
       if (sLeftBytes.length)
         throw new E("invalid signature: left bytes after parsing");
+      if (maxScalarBytes !== void 0 && (rBytes.length > maxScalarBytes || sBytes.length > maxScalarBytes))
+        throw new E("invalid signature: integer too large");
       return { r: int.decode(rBytes), s: int.decode(sBytes) };
     },
     hexFromSig(sig) {
-      const { _tlv: tlv, _int: int } = DER;
+      const { _tlv: tlv, _int: int } = _DER;
+      validateObject(sig, { r: "bigint", s: "bigint" }, {}, "sig");
       const rs = tlv.encode(2, int.encode(sig.r));
       const ss = tlv.encode(2, int.encode(sig.s));
       const seq = rs + ss;
       return tlv.encode(48, seq);
     }
   };
-  var _0n4 = BigInt(0);
-  var _1n4 = BigInt(1);
-  var _2n2 = BigInt(2);
-  var _3n2 = BigInt(3);
-  var _4n2 = BigInt(4);
-  function _normFnElement(Fn, key) {
-    const { BYTES: expected } = Fn;
-    let num;
-    if (typeof key === "bigint") {
-      num = key;
-    } else {
-      let bytes = ensureBytes("private key", key);
-      try {
-        num = Fn.fromBytes(bytes);
-      } catch (error) {
-        throw new Error(`invalid private key: expected ui8a of size ${expected}, got ${typeof key}`);
-      }
+  var DER = /*  */ (() => {
+    Object.freeze(_DER._tlv);
+    Object.freeze(_DER._int);
+    return Object.freeze(_DER);
+  })();
+
+  // node_modules/@noble/curves/abstract/weierstrass.js
+  /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  var divNearest = (num, den) => (num + (num >= 0 ? den : -den) / _2n2) / den;
+  function _splitEndoScalar(k, basis, n) {
+    aInRange("scalar", k, _0n5, n);
+    const [[a1, b1], [a2, b2]] = basis;
+    const c1 = divNearest(b2 * k, n);
+    const c2 = divNearest(-b1 * k, n);
+    let k1 = k - c1 * a1 - c2 * a2;
+    let k2 = -c1 * b1 - c2 * b2;
+    const k1neg = k1 < _0n5;
+    const k2neg = k2 < _0n5;
+    if (k1neg)
+      k1 = -k1;
+    if (k2neg)
+      k2 = -k2;
+    const MAX_NUM = bitMask(Math.ceil(bitLen(n) / 2)) + _1n4;
+    if (k1 < _0n5 || k1 >= MAX_NUM || k2 < _0n5 || k2 >= MAX_NUM) {
+      throw new Error("splitScalar (endomorphism): failed for k");
     }
-    if (!Fn.isValidNot0(num))
-      throw new Error("invalid private key: out of range [1..N-1]");
-    return num;
+    return { k1neg, k1, k2neg, k2 };
   }
-  function weierstrassN(params, extraOpts = {}) {
-    const validated = _createCurveFields("weierstrass", params, extraOpts);
-    const { Fp, Fn } = validated;
+  function validateSigFormat(format) {
+    if (!["compact", "recovered", "der"].includes(format))
+      throw new Error('Signature format must be "compact", "recovered", or "der"');
+    return format;
+  }
+  function validateSigOpts(opts, def) {
+    validateObject(opts);
+    const optsn = {};
+    for (let optName of Object.keys(def)) {
+      optsn[optName] = opts[optName] === void 0 ? def[optName] : opts[optName];
+    }
+    abool(optsn.lowS, "lowS");
+    abool(optsn.prehash, "prehash");
+    if (optsn.format !== void 0)
+      validateSigFormat(optsn.format);
+    return optsn;
+  }
+  var _0n5 = /*  */ BigInt(0);
+  var _1n4 = /*  */ BigInt(1);
+  var _2n2 = /*  */ BigInt(2);
+  var _3n2 = /*  */ BigInt(3);
+  var _4n3 = /*  */ BigInt(4);
+  function weierstrass(params, extraOpts = {}) {
+    const validated = createCurveFields("weierstrass", params, extraOpts);
+    const Fp = validated.Fp;
+    const Fn = validated.Fn;
     let CURVE = validated.CURVE;
     const { h: cofactor, n: CURVE_ORDER2 } = CURVE;
-    _validateObject(extraOpts, {}, {
+    validateObject(extraOpts, {}, {
       allowInfinityPoint: "boolean",
       clearCofactor: "function",
       isTorsionFree: "function",
       fromBytes: "function",
       toBytes: "function",
       endo: "object",
-      wrapPrivateKey: "boolean"
+      randomBytes: "function"
     });
-    const { endo } = extraOpts;
-    if (endo) {
-      if (!Fp.is0(CURVE.a) || typeof endo.beta !== "bigint" || !Array.isArray(endo.basises)) {
+    const { endo: endoOpts, allowInfinityPoint, clearCofactor, isTorsionFree, fromBytes, toBytes } = extraOpts;
+    const randomBytes4 = extraOpts.randomBytes === void 0 ? randomBytes2 : extraOpts.randomBytes;
+    if (endoOpts) {
+      if (!Fp.is0(CURVE.a) || typeof endoOpts.beta !== "bigint" || !Array.isArray(endoOpts.basises)) {
         throw new Error('invalid endo: expected "beta": bigint and "basises": array');
       }
     }
+    const endo = endoOpts ? {
+      beta: endoOpts.beta,
+      basises: endoOpts.basises.map((basis) => [...basis])
+    } : void 0;
     const lengths = getWLengths(Fp, Fn);
     function assertCompressionIsSupported() {
       if (!Fp.isOdd)
         throw new Error("compression is not supported: Field does not have .isOdd()");
     }
     function pointToBytes(_c, point, isCompressed) {
+      if (point.is0()) {
+        if (!allowInfinityPoint)
+          throw new Error("bad point: ZERO");
+        return Uint8Array.of(0);
+      }
       const { x, y } = point.toAffine();
       const bx = Fp.toBytes(x);
-      _abool2(isCompressed, "isCompressed");
+      abool(isCompressed, "isCompressed");
       if (isCompressed) {
         assertCompressionIsSupported();
         const hasEvenY = !Fp.isOdd(y);
-        return concatBytes(pprefix(hasEvenY), bx);
+        return concatBytes2(pprefix(hasEvenY), bx);
       } else {
-        return concatBytes(Uint8Array.of(4), bx, Fp.toBytes(y));
+        return concatBytes2(Uint8Array.of(4), bx, Fp.toBytes(y));
       }
     }
     function pointFromBytes(bytes) {
-      _abytes2(bytes, void 0, "Point");
+      abytes2(bytes, void 0, "Point");
       const { publicKey: comp, publicKeyUncompressed: uncomp } = lengths;
       const length = bytes.length;
       const head = bytes[0];
       const tail = bytes.subarray(1);
+      if (allowInfinityPoint && length === 1 && head === 0)
+        return { x: Fp.ZERO, y: Fp.ZERO };
       if (length === comp && (head === 2 || head === 3)) {
         const x = Fp.fromBytes(tail);
         if (!Fp.isValid(x))
@@ -2223,9 +2597,9 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
           throw new Error("bad point: is not on curve, sqrt error" + err2);
         }
         assertCompressionIsSupported();
-        const isYOdd = Fp.isOdd(y);
-        const isHeadOdd = (head & 1) === 1;
-        if (isHeadOdd !== isYOdd)
+        const evenY = Fp.isOdd(y);
+        const evenH = (head & 1) === 1;
+        if (evenH !== evenY)
           y = Fp.neg(y);
         return { x, y };
       } else if (length === uncomp && head === 4) {
@@ -2239,8 +2613,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         throw new Error(`bad point: got length ${length}, expected compressed=${comp} or uncompressed=${uncomp}`);
       }
     }
-    const encodePoint = extraOpts.toBytes || pointToBytes;
-    const decodePoint = extraOpts.fromBytes || pointFromBytes;
+    const encodePoint = toBytes === void 0 ? pointToBytes : toBytes;
+    const decodePoint = fromBytes === void 0 ? pointFromBytes : fromBytes;
+    const b3 = Fp.mul(CURVE.b, _3n2);
+    const mulA = Fp.is0(CURVE.a) ? (_) => Fp.ZERO : (x) => Fp.mul(CURVE.a, x);
     function weierstrassEquation(x) {
       const x2 = Fp.sqr(x);
       const x3 = Fp.mul(x2, x);
@@ -2253,64 +2629,44 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     }
     if (!isValidXY(CURVE.Gx, CURVE.Gy))
       throw new Error("bad curve params: generator point");
-    const _4a3 = Fp.mul(Fp.pow(CURVE.a, _3n2), _4n2);
+    const _4a3 = Fp.mul(Fp.pow(CURVE.a, _3n2), _4n3);
     const _27b2 = Fp.mul(Fp.sqr(CURVE.b), BigInt(27));
     if (Fp.is0(Fp.add(_4a3, _27b2)))
       throw new Error("bad curve params: a or b");
     function acoord(title, n, banZero = false) {
       if (!Fp.isValid(n) || banZero && Fp.is0(n))
         throw new Error(`bad point coordinate ${title}`);
-      return n;
+      return typeof n === "object" && n !== null ? Fp.create(n) : n;
     }
     function aprjpoint(other) {
       if (!(other instanceof Point))
-        throw new Error("ProjectivePoint expected");
+        throw new Error("Weierstrass Point expected");
     }
     function splitEndoScalarN(k) {
       if (!endo || !endo.basises)
         throw new Error("no endo");
       return _splitEndoScalar(k, endo.basises, Fn.ORDER);
     }
-    const toAffineMemo = memoized((p, iz) => {
-      const { X, Y, Z } = p;
-      if (Fp.eql(Z, Fp.ONE))
-        return { x: X, y: Y };
-      const is0 = p.is0();
-      if (iz == null)
-        iz = is0 ? Fp.ONE : Fp.inv(Z);
-      const x = Fp.mul(X, iz);
-      const y = Fp.mul(Y, iz);
-      const zz = Fp.mul(Z, iz);
-      if (is0)
-        return { x: Fp.ZERO, y: Fp.ZERO };
-      if (!Fp.eql(zz, Fp.ONE))
-        throw new Error("invZ was invalid");
-      return { x, y };
-    });
-    const assertValidMemo = memoized((p) => {
-      if (p.is0()) {
-        if (extraOpts.allowInfinityPoint && !Fp.is0(p.Y))
-          return;
-        throw new Error("bad point: ZERO");
+    function pushWnafPair(points, scalars, p, k) {
+      if (!Fn.isValid(k))
+        throw new RangeError("invalid scalar: out of range");
+      if (endo) {
+        const { k1neg, k1, k2neg, k2 } = splitEndoScalarN(k);
+        const psi = new Point(Fp.mul(p.X, endo.beta), p.Y, p.Z);
+        points.push(k1neg ? p.negate() : p, k2neg ? psi.negate() : psi);
+        scalars.push(k1, k2);
+      } else {
+        points.push(p);
+        scalars.push(k);
       }
-      const { x, y } = p.toAffine();
-      if (!Fp.isValid(x) || !Fp.isValid(y))
-        throw new Error("bad point: x or y not field elements");
-      if (!isValidXY(x, y))
-        throw new Error("bad point: equation left != right");
-      if (!p.isTorsionFree())
-        throw new Error("bad point: not in prime-order subgroup");
-      return true;
-    });
-    function finishEndo(endoBeta, k1p, k2p, k1neg, k2neg) {
-      k2p = new Point(Fp.mul(k2p.X, endoBeta), k2p.Y, k2p.Z);
-      k1p = negateCt(k1neg, k1p);
-      k2p = negateCt(k2neg, k2p);
-      return k1p.add(k2p);
     }
-    class Point {
+    const validityCache = /*  */ new WeakSet();
+    const _Point = class _Point {
       /** Does NOT validate if the point is valid. Use `.assertValidity()`. */
       constructor(X, Y, Z) {
+        __publicField(this, "X");
+        __publicField(this, "Y");
+        __publicField(this, "Z");
         this.X = acoord("x", X);
         this.Y = acoord("y", Y, true);
         this.Z = acoord("z", Z);
@@ -2324,19 +2680,19 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         const { x, y } = p || {};
         if (!p || !Fp.isValid(x) || !Fp.isValid(y))
           throw new Error("invalid affine point");
-        if (p instanceof Point)
+        if (p instanceof _Point)
           throw new Error("projective point not allowed");
         if (Fp.is0(x) && Fp.is0(y))
-          return Point.ZERO;
-        return new Point(x, y, Fp.ONE);
+          return _Point.ZERO;
+        return new _Point(x, y, Fp.ONE);
       }
       static fromBytes(bytes) {
-        const P = Point.fromAffine(decodePoint(_abytes2(bytes, void 0, "point")));
+        const P = _Point.fromAffine(decodePoint(abytes2(bytes, void 0, "point")));
         P.assertValidity();
         return P;
       }
       static fromHex(hex) {
-        return Point.fromBytes(ensureBytes("pointHex", hex));
+        return _Point.fromBytes(hexToBytes2(hex));
       }
       get x() {
         return this.toAffine().x;
@@ -2345,13 +2701,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         return this.toAffine().y;
       }
       /**
-       *
-       * @param windowSize
-       * @param isLazy true will defer table computation until the first multiplication
-       * @returns
+       * @param isLazy - true will defer table computation until the first multiplication
        */
-      precompute(windowSize = 8, isLazy = true) {
-        wnaf.createCache(this, windowSize);
+      precompute(windowSize = 6, isLazy = true) {
+        wnaf.setWindowSize(this, windowSize);
         if (!isLazy)
           this.multiply(_3n2);
         return this;
@@ -2359,7 +2712,22 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       // TODO: return `this`
       /** A point on curve is valid if it conforms to equation. */
       assertValidity() {
-        assertValidMemo(this);
+        const p = this;
+        if (p.is0()) {
+          if (allowInfinityPoint && Fp.is0(p.X) && Fp.eql(p.Y, Fp.ONE) && Fp.is0(p.Z))
+            return;
+          throw new Error("bad point: ZERO");
+        }
+        if (validityCache.has(p))
+          return;
+        const { x, y } = p.toAffine();
+        if (!Fp.isValid(x) || !Fp.isValid(y))
+          throw new Error("bad point: x or y not field elements");
+        if (!isValidXY(x, y))
+          throw new Error("bad point: equation left != right");
+        if (!p.isTorsionFree())
+          throw new Error("bad point: not in prime-order subgroup");
+        validityCache.add(p);
       }
       hasEvenY() {
         const { y } = this.toAffine();
@@ -2378,15 +2746,13 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       }
       /** Flips point to one corresponding to (x, -y) in Affine coordinates. */
       negate() {
-        return new Point(this.X, Fp.neg(this.Y), this.Z);
+        return new _Point(this.X, Fp.neg(this.Y), this.Z);
       }
       // Renes-Costello-Batina exception-free doubling formula.
       // There is 30% faster Jacobian formula, but it is not complete.
       // https://eprint.iacr.org/2015/1060, algorithm 3
       // Cost: 8M + 3S + 3*a + 2*b3 + 15add.
       double() {
-        const { a, b } = CURVE;
-        const b3 = Fp.mul(b, _3n2);
         const { X: X1, Y: Y1, Z: Z1 } = this;
         let X3 = Fp.ZERO, Y3 = Fp.ZERO, Z3 = Fp.ZERO;
         let t0 = Fp.mul(X1, X1);
@@ -2396,7 +2762,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         t3 = Fp.add(t3, t3);
         Z3 = Fp.mul(X1, Z1);
         Z3 = Fp.add(Z3, Z3);
-        X3 = Fp.mul(a, Z3);
+        X3 = mulA(Z3);
         Y3 = Fp.mul(b3, t2);
         Y3 = Fp.add(X3, Y3);
         X3 = Fp.sub(t1, Y3);
@@ -2404,9 +2770,9 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         Y3 = Fp.mul(X3, Y3);
         X3 = Fp.mul(t3, X3);
         Z3 = Fp.mul(b3, Z3);
-        t2 = Fp.mul(a, t2);
+        t2 = mulA(t2);
         t3 = Fp.sub(t0, t2);
-        t3 = Fp.mul(a, t3);
+        t3 = mulA(t3);
         t3 = Fp.add(t3, Z3);
         Z3 = Fp.add(t0, t0);
         t0 = Fp.add(Z3, t0);
@@ -2420,7 +2786,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         Z3 = Fp.mul(t2, t1);
         Z3 = Fp.add(Z3, Z3);
         Z3 = Fp.add(Z3, Z3);
-        return new Point(X3, Y3, Z3);
+        return new _Point(X3, Y3, Z3);
       }
       // Renes-Costello-Batina exception-free addition formula.
       // There is 30% faster Jacobian formula, but it is not complete.
@@ -2431,8 +2797,6 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         const { X: X1, Y: Y1, Z: Z1 } = this;
         const { X: X2, Y: Y2, Z: Z2 } = other;
         let X3 = Fp.ZERO, Y3 = Fp.ZERO, Z3 = Fp.ZERO;
-        const a = CURVE.a;
-        const b3 = Fp.mul(CURVE.b, _3n2);
         let t0 = Fp.mul(X1, X2);
         let t1 = Fp.mul(Y1, Y2);
         let t2 = Fp.mul(Z1, Z2);
@@ -2451,7 +2815,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         t5 = Fp.mul(t5, X3);
         X3 = Fp.add(t1, t2);
         t5 = Fp.sub(t5, X3);
-        Z3 = Fp.mul(a, t4);
+        Z3 = mulA(t4);
         X3 = Fp.mul(b3, t2);
         Z3 = Fp.add(X3, Z3);
         X3 = Fp.sub(t1, Z3);
@@ -2459,11 +2823,11 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         Y3 = Fp.mul(X3, Z3);
         t1 = Fp.add(t0, t0);
         t1 = Fp.add(t1, t0);
-        t2 = Fp.mul(a, t2);
+        t2 = mulA(t2);
         t4 = Fp.mul(b3, t4);
         t1 = Fp.add(t1, t2);
         t2 = Fp.sub(t0, t2);
-        t2 = Fp.mul(a, t2);
+        t2 = mulA(t2);
         t4 = Fp.add(t4, t2);
         t0 = Fp.mul(t1, t4);
         Y3 = Fp.add(Y3, t0);
@@ -2473,144 +2837,136 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         t0 = Fp.mul(t3, t1);
         Z3 = Fp.mul(t5, Z3);
         Z3 = Fp.add(Z3, t0);
-        return new Point(X3, Y3, Z3);
+        return new _Point(X3, Y3, Z3);
       }
       subtract(other) {
+        aprjpoint(other);
         return this.add(other.negate());
       }
       is0() {
-        return this.equals(Point.ZERO);
+        return this.equals(_Point.ZERO);
       }
       /**
        * Constant time multiplication.
-       * Uses wNAF method. Windowed method may be 10% faster,
-       * but takes 2x longer to generate and consumes 2x memory.
-       * Uses precomputes when available.
-       * Uses endomorphism for Koblitz curves.
-       * @param scalar by which the point would be multiplied
+       * Uses precomputed tables (signed fixed-window wNAF) when available.
+       * Uses scalar blinding and avoids endomorphism splitting in the secret-scalar path.
+       * @param scalar - by which the point would be multiplied
        * @returns New point
        */
       multiply(scalar) {
-        const { endo: endo2 } = extraOpts;
         if (!Fn.isValidNot0(scalar))
-          throw new Error("invalid scalar: out of range");
-        let point, fake;
-        const mul = (n) => wnaf.cached(this, n, (p) => normalizeZ(Point, p));
-        if (endo2) {
-          const { k1neg, k1, k2neg, k2 } = splitEndoScalarN(scalar);
-          const { p: k1p, f: k1f } = mul(k1);
-          const { p: k2p, f: k2f } = mul(k2);
-          fake = k1f.add(k2f);
-          point = finishEndo(endo2.beta, k1p, k2p, k1neg, k2neg);
-        } else {
-          const { p, f } = mul(scalar);
-          point = p;
-          fake = f;
-        }
-        return normalizeZ(Point, [point, fake])[0];
+          throw new RangeError("invalid scalar: out of range");
+        const { p, f } = wnaf.mulSecret(this, scalar, cofactor, normalize2);
+        return normalize2([p, f])[0];
       }
       /**
-       * Non-constant-time multiplication. Uses double-and-add algorithm.
+       * Non-constant-time multiplication. Uses width-4 wNAF with GLV endomorphism splitting
+       * when available (two half-width scalars sharing one halved doubling chain).
        * It's faster, but should only be used when you don't care about
        * an exposed secret key e.g. sig verification, which works over *public* keys.
        */
-      multiplyUnsafe(sc) {
-        const { endo: endo2 } = extraOpts;
+      multiplyUnsafe(scalar) {
         const p = this;
+        const sc = scalar;
         if (!Fn.isValid(sc))
-          throw new Error("invalid scalar: out of range");
-        if (sc === _0n4 || p.is0())
-          return Point.ZERO;
+          throw new RangeError("invalid scalar: out of range");
+        if (sc === _0n5 || p.is0())
+          return _Point.ZERO;
         if (sc === _1n4)
           return p;
-        if (wnaf.hasCache(this))
-          return this.multiply(sc);
-        if (endo2) {
-          const { k1neg, k1, k2neg, k2 } = splitEndoScalarN(sc);
-          const { p1, p2 } = mulEndoUnsafe(Point, p, k1, k2);
-          return finishEndo(endo2.beta, p1, p2, k1neg, k2neg);
-        } else {
-          return wnaf.unsafe(p, sc);
-        }
+        if (wnaf.hasWindowSize(this))
+          return wnaf.mulUnsafe(p, sc, normalize2);
+        const points = [];
+        const scalars = [];
+        pushWnafPair(points, scalars, p, sc);
+        return mulAddUnsafe(_Point, points, scalars);
       }
-      multiplyAndAddUnsafe(Q, a, b) {
-        const sum = this.multiplyUnsafe(a).add(Q.multiplyUnsafe(b));
-        return sum.is0() ? void 0 : sum;
+      /**
+       * Non-constant-time double-scalar multiplication `a⋅this + b⋅other` (Strauss–Shamir).
+       * Both walks share one doubling chain via {@link mulAddUnsafe}, and GLV endomorphism
+       * (when available) halves the chain again by splitting each scalar into two half-width
+       * parts. Used by ECDSA verification and public-key recovery for `R = u1⋅G + u2⋅P`.
+       * Only for public scalars.
+       */
+      mulAddUnsafe(a, other, b) {
+        aprjpoint(other);
+        const points = [];
+        const scalars = [];
+        pushWnafPair(points, scalars, this, a);
+        pushWnafPair(points, scalars, other, b);
+        return mulAddUnsafe(_Point, points, scalars);
       }
       /**
        * Converts Projective point to affine (x, y) coordinates.
-       * @param invertedZ Z^-1 (inverted zero) - optional, precomputation is useful for invertBatch
+       * (X, Y, Z) ∋ (x=X/Z, y=Y/Z).
+       * @param invertedZ - Z^-1 (inverted zero) - optional, precomputation is useful for invertBatch
        */
       toAffine(invertedZ) {
-        return toAffineMemo(this, invertedZ);
+        const p = this;
+        let iz = invertedZ;
+        if (iz != null && !Fp.isValid(iz))
+          throw new RangeError('"invertedZ" expected valid field element');
+        const { X, Y, Z } = p;
+        if (Fp.eql(Z, Fp.ONE))
+          return { x: X, y: Y };
+        const is0 = p.is0();
+        if (iz == null)
+          iz = is0 ? Fp.ONE : Fp.inv(Z);
+        const x = Fp.mul(X, iz);
+        const y = Fp.mul(Y, iz);
+        const zz = Fp.mul(Z, iz);
+        if (is0)
+          return { x: Fp.ZERO, y: Fp.ZERO };
+        if (!Fp.eql(zz, Fp.ONE))
+          throw new Error("invZ was invalid");
+        return { x, y };
       }
       /**
        * Checks whether Point is free of torsion elements (is in prime subgroup).
        * Always torsion-free for cofactor=1 curves.
        */
       isTorsionFree() {
-        const { isTorsionFree } = extraOpts;
         if (cofactor === _1n4)
           return true;
         if (isTorsionFree)
-          return isTorsionFree(Point, this);
-        return wnaf.unsafe(this, CURVE_ORDER2).is0();
+          return isTorsionFree(_Point, this);
+        return wnaf.mulUnsafe(this, CURVE_ORDER2).is0();
       }
       clearCofactor() {
-        const { clearCofactor } = extraOpts;
         if (cofactor === _1n4)
           return this;
         if (clearCofactor)
-          return clearCofactor(Point, this);
+          return clearCofactor(_Point, this);
         return this.multiplyUnsafe(cofactor);
       }
       isSmallOrder() {
-        return this.multiplyUnsafe(cofactor).is0();
+        if (cofactor === _1n4)
+          return this.is0();
+        return this.clearCofactor().is0();
       }
       toBytes(isCompressed = true) {
-        _abool2(isCompressed, "isCompressed");
+        abool(isCompressed, "isCompressed");
         this.assertValidity();
-        return encodePoint(Point, this, isCompressed);
+        return encodePoint(_Point, this, isCompressed);
       }
       toHex(isCompressed = true) {
-        return bytesToHex(this.toBytes(isCompressed));
+        return bytesToHex2(this.toBytes(isCompressed));
       }
       toString() {
         return `<Point ${this.is0() ? "ZERO" : this.toHex()}>`;
       }
-      // TODO: remove
-      get px() {
-        return this.X;
-      }
-      get py() {
-        return this.X;
-      }
-      get pz() {
-        return this.Z;
-      }
-      toRawBytes(isCompressed = true) {
-        return this.toBytes(isCompressed);
-      }
-      _setWindowSize(windowSize) {
-        this.precompute(windowSize);
-      }
-      static normalizeZ(points) {
-        return normalizeZ(Point, points);
-      }
-      static msm(points, scalars) {
-        return pippenger(Point, Fn, points, scalars);
-      }
-      static fromPrivateKey(privateKey) {
-        return Point.BASE.multiply(_normFnElement(Fn, privateKey));
-      }
-    }
-    Point.BASE = new Point(CURVE.Gx, CURVE.Gy, Fp.ONE);
-    Point.ZERO = new Point(Fp.ZERO, Fp.ONE, Fp.ZERO);
-    Point.Fp = Fp;
-    Point.Fn = Fn;
-    const bits = Fn.BITS;
-    const wnaf = new wNAF(Point, extraOpts.endo ? Math.ceil(bits / 2) : bits);
-    Point.BASE.precompute(8);
+    };
+    __publicField(_Point, "BASE", new _Point(CURVE.Gx, CURVE.Gy, Fp.ONE));
+    __publicField(_Point, "ZERO", new _Point(Fp.ZERO, Fp.ONE, Fp.ZERO));
+    __publicField(_Point, "Fp", Fp);
+    __publicField(_Point, "Fn", Fn);
+    let Point = _Point;
+    const normalize2 = (points) => normalizeZ(Point, points);
+    const wnaf = new ScalarMultiplier(Point, randomBytes4);
+    if (wnaf.bits >= 6)
+      Point.BASE.precompute(6);
+    Object.freeze(Point.prototype);
+    Object.freeze(Point);
     return Point;
   }
   function pprefix(hasEvenY) {
@@ -2622,16 +2978,22 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       publicKey: 1 + Fp.BYTES,
       publicKeyUncompressed: 1 + 2 * Fp.BYTES,
       publicKeyHasPrefix: true,
+      // Raw compact `(r || s)` signature width; DER and recovered signatures use
+      // different lengths outside this helper.
       signature: 2 * Fn.BYTES
     };
   }
   function ecdh(Point, ecdhOpts = {}) {
+    validatePointCons(Point);
     const { Fn } = Point;
-    const randomBytes_ = ecdhOpts.randomBytes || randomBytes;
-    const lengths = Object.assign(getWLengths(Point.Fp, Fn), { seed: getMinHashLength(Fn.ORDER) });
+    const randomBytes_ = ecdhOpts.randomBytes === void 0 ? randomBytes2 : ecdhOpts.randomBytes;
+    const lengths = Object.assign(getWLengths(Point.Fp, Fn), {
+      seed: Math.max(getMinHashLength(Fn.ORDER), 16)
+    });
     function isValidSecretKey(secretKey) {
       try {
-        return !!_normFnElement(Fn, secretKey);
+        const num = Fn.fromBytes(secretKey);
+        return Fn.isValidNot0(num);
       } catch (error) {
         return false;
       }
@@ -2644,77 +3006,77 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
           return false;
         if (isCompressed === false && l !== publicKeyUncompressed)
           return false;
-        return !!Point.fromBytes(publicKey);
+        return !Point.fromBytes(publicKey).is0();
       } catch (error) {
         return false;
       }
     }
-    function randomSecretKey(seed = randomBytes_(lengths.seed)) {
-      return mapHashToField(_abytes2(seed, lengths.seed, "seed"), Fn.ORDER);
+    function randomSecretKey(seed) {
+      seed = seed === void 0 ? randomBytes_(lengths.seed) : seed;
+      return mapHashToField(abytes2(seed, lengths.seed, "seed"), Fn.ORDER);
     }
     function getPublicKey(secretKey, isCompressed = true) {
-      return Point.BASE.multiply(_normFnElement(Fn, secretKey)).toBytes(isCompressed);
-    }
-    function keygen(seed) {
-      const secretKey = randomSecretKey(seed);
-      return { secretKey, publicKey: getPublicKey(secretKey) };
+      return Point.BASE.multiply(Fn.fromBytes(secretKey)).toBytes(isCompressed);
     }
     function isProbPub(item) {
-      if (typeof item === "bigint")
-        return false;
-      if (item instanceof Point)
-        return true;
       const { secretKey, publicKey, publicKeyUncompressed } = lengths;
-      if (Fn.allowedLengths || secretKey === publicKey)
+      const allowedLengths = Fn._lengths;
+      if (!isBytes2(item))
         return void 0;
-      const l = ensureBytes("key", item).length;
-      return l === publicKey || l === publicKeyUncompressed;
+      const l = abytes2(item, void 0, "key").length;
+      const isPub = l === publicKey || l === publicKeyUncompressed;
+      const isSec = l === secretKey || !!allowedLengths?.includes(l);
+      if (isPub && isSec)
+        return void 0;
+      return isPub;
     }
     function getSharedSecret(secretKeyA, publicKeyB, isCompressed = true) {
       if (isProbPub(secretKeyA) === true)
         throw new Error("first arg must be private key");
       if (isProbPub(publicKeyB) === false)
         throw new Error("second arg must be public key");
-      const s = _normFnElement(Fn, secretKeyA);
-      const b = Point.fromHex(publicKeyB);
+      const s = Fn.fromBytes(secretKeyA);
+      const b = Point.fromBytes(publicKeyB);
+      if (b.is0())
+        throw new Error("invalid public key: point at infinity");
       return b.multiply(s).toBytes(isCompressed);
     }
-    const utils2 = {
+    const utils = {
       isValidSecretKey,
       isValidPublicKey: isValidPublicKey2,
-      randomSecretKey,
-      // TODO: remove
-      isValidPrivateKey: isValidSecretKey,
-      randomPrivateKey: randomSecretKey,
-      normPrivateKeyToScalar: (key) => _normFnElement(Fn, key),
-      precompute(windowSize = 8, point = Point.BASE) {
-        return point.precompute(windowSize, false);
-      }
+      randomSecretKey
     };
-    return Object.freeze({ getPublicKey, getSharedSecret, keygen, Point, utils: utils2, lengths });
+    const keygen = createKeygen(randomSecretKey, getPublicKey);
+    Object.freeze(utils);
+    Object.freeze(lengths);
+    return Object.freeze({ getPublicKey, getSharedSecret, keygen, Point, utils, lengths });
   }
   function ecdsa(Point, hash, ecdsaOpts = {}) {
-    ahash(hash);
-    _validateObject(ecdsaOpts, {}, {
+    validatePointCons(Point);
+    const hash_ = hash;
+    ahash(hash_);
+    validateObject(ecdsaOpts, {}, {
       hmac: "function",
       lowS: "boolean",
       randomBytes: "function",
       bits2int: "function",
       bits2int_modN: "function"
     });
-    const randomBytes3 = ecdsaOpts.randomBytes || randomBytes;
-    const hmac2 = ecdsaOpts.hmac || ((key, ...msgs) => hmac(hash, key, concatBytes(...msgs)));
+    const opts = Object.assign({}, ecdsaOpts);
+    const randomBytes4 = opts.randomBytes === void 0 ? randomBytes2 : opts.randomBytes;
+    const hmac2 = opts.hmac === void 0 ? (key, msg) => hmac(hash_, key, msg) : opts.hmac;
     const { Fp, Fn } = Point;
     const { ORDER: CURVE_ORDER2, BITS: fnBits } = Fn;
-    const { keygen, getPublicKey, getSharedSecret, utils: utils2, lengths } = ecdh(Point, ecdsaOpts);
+    const blindLength = getMinHashLength(CURVE_ORDER2);
+    const csprng = probeRandomBytes(randomBytes4, blindLength);
+    const { keygen, getPublicKey, getSharedSecret, utils, lengths } = ecdh(Point, opts);
     const defaultSigOpts = {
-      prehash: false,
-      lowS: typeof ecdsaOpts.lowS === "boolean" ? ecdsaOpts.lowS : false,
-      format: void 0,
-      //'compact' as ECDSASigFormat,
+      prehash: true,
+      lowS: typeof opts.lowS === "boolean" ? opts.lowS : true,
+      format: "compact",
       extraEntropy: false
     };
-    const defaultSigOpts_format = "compact";
+    const hasLargeRecoveryLifts = CURVE_ORDER2 * _2n2 + _1n4 < Fp.ORDER;
     function isBiggerThanHalfOrder(number) {
       const HALF = CURVE_ORDER2 >> _1n4;
       return number > HALF;
@@ -2724,25 +3086,46 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         throw new Error(`invalid signature ${title}: out of range 1..Point.Fn.ORDER`);
       return num;
     }
+    function assertFieldSignIsSupported() {
+      if (!Fp.isOdd)
+        throw new Error("Field doesn't support isOdd");
+    }
+    function getRecoveryBit(x, y, r) {
+      assertFieldSignIsSupported();
+      return (x === r ? 0 : 2) | Number(Fp.isOdd(y));
+    }
+    function assertRecoverableCurve() {
+      if (hasLargeRecoveryLifts)
+        throw new Error('"recovered" sig type is not supported for cofactor >2 curves');
+    }
     function validateSigLength(bytes, format) {
       validateSigFormat(format);
       const size = lengths.signature;
       const sizer = format === "compact" ? size : format === "recovered" ? size + 1 : void 0;
-      return _abytes2(bytes, sizer, `${format} signature`);
+      return abytes2(bytes, sizer);
     }
     class Signature {
       constructor(r, s, recovery) {
+        __publicField(this, "r");
+        __publicField(this, "s");
+        __publicField(this, "recovery");
         this.r = validateRS("r", r);
         this.s = validateRS("s", s);
-        if (recovery != null)
+        if (recovery != null) {
+          assertRecoverableCurve();
+          if (![0, 1, 2, 3].includes(recovery))
+            throw new Error("invalid recovery id");
           this.recovery = recovery;
+        }
         Object.freeze(this);
       }
-      static fromBytes(bytes, format = defaultSigOpts_format) {
+      static fromBytes(bytes, format = defaultSigOpts.format) {
         validateSigLength(bytes, format);
         let recid;
         if (format === "der") {
-          const { r: r2, s: s2 } = DER.toSig(_abytes2(bytes));
+          if (bytes.length > 2 * Fn.BYTES + 16)
+            throw new DER.Err("invalid signature: DER signature too long");
+          const { r: r2, s: s2 } = DER.toSig(abytes2(bytes), Fn.BYTES + 1);
           return new Signature(r2, s2);
         }
         if (format === "recovered") {
@@ -2750,37 +3133,40 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
           format = "compact";
           bytes = bytes.subarray(1);
         }
-        const L = Fn.BYTES;
+        const L = lengths.signature / 2;
         const r = bytes.subarray(0, L);
         const s = bytes.subarray(L, L * 2);
         return new Signature(Fn.fromBytes(r), Fn.fromBytes(s), recid);
       }
       static fromHex(hex, format) {
-        return this.fromBytes(hexToBytes(hex), format);
+        return this.fromBytes(hexToBytes2(hex), format);
+      }
+      assertRecovery() {
+        const { recovery } = this;
+        if (recovery == null)
+          throw new Error("invalid recovery id: must be present");
+        return recovery;
       }
       addRecoveryBit(recovery) {
         return new Signature(this.r, this.s, recovery);
       }
+      // Unlike the top-level helper below, this method expects a digest that has
+      // already been hashed to the curve's message representative.
       recoverPublicKey(messageHash) {
-        const FIELD_ORDER = Fp.ORDER;
-        const { r, s, recovery: rec } = this;
-        if (rec == null || ![0, 1, 2, 3].includes(rec))
-          throw new Error("recovery id invalid");
-        const hasCofactor = CURVE_ORDER2 * _2n2 < FIELD_ORDER;
-        if (hasCofactor && rec > 1)
-          throw new Error("recovery id is ambiguous for h>1 curve");
-        const radj = rec === 2 || rec === 3 ? r + CURVE_ORDER2 : r;
+        const { r, s } = this;
+        const recovery = this.assertRecovery();
+        const radj = recovery === 2 || recovery === 3 ? r + CURVE_ORDER2 : r;
         if (!Fp.isValid(radj))
-          throw new Error("recovery id 2 or 3 invalid");
+          throw new Error("invalid recovery id: sig.r+curve.n != R.x");
         const x = Fp.toBytes(radj);
-        const R = Point.fromBytes(concatBytes(pprefix((rec & 1) === 0), x));
+        const R = Point.fromBytes(concatBytes2(pprefix((recovery & 1) === 0), x));
         const ir = Fn.inv(radj);
-        const h = bits2int_modN(ensureBytes("msgHash", messageHash));
+        const h = bits2int_modN(abytes2(messageHash, void 0, "msgHash"));
         const u1 = Fn.create(-h * ir);
         const u2 = Fn.create(s * ir);
-        const Q = Point.BASE.multiplyUnsafe(u1).add(R.multiplyUnsafe(u2));
+        const Q = Point.BASE.mulAddUnsafe(u1, R, u2);
         if (Q.is0())
-          throw new Error("point at infinify");
+          throw new Error("invalid recovery: point at infinify");
         Q.assertValidity();
         return Q;
       }
@@ -2788,147 +3174,109 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       hasHighS() {
         return isBiggerThanHalfOrder(this.s);
       }
-      toBytes(format = defaultSigOpts_format) {
+      toBytes(format = defaultSigOpts.format) {
         validateSigFormat(format);
         if (format === "der")
-          return hexToBytes(DER.hexFromSig(this));
-        const r = Fn.toBytes(this.r);
-        const s = Fn.toBytes(this.s);
+          return hexToBytes2(DER.hexFromSig(this));
+        const { r, s } = this;
+        const rb = Fn.toBytes(r);
+        const sb = Fn.toBytes(s);
         if (format === "recovered") {
-          if (this.recovery == null)
-            throw new Error("recovery bit must be present");
-          return concatBytes(Uint8Array.of(this.recovery), r, s);
+          assertRecoverableCurve();
+          return concatBytes2(Uint8Array.of(this.assertRecovery()), rb, sb);
         }
-        return concatBytes(r, s);
+        return concatBytes2(rb, sb);
       }
       toHex(format) {
-        return bytesToHex(this.toBytes(format));
-      }
-      // TODO: remove
-      assertValidity() {
-      }
-      static fromCompact(hex) {
-        return Signature.fromBytes(ensureBytes("sig", hex), "compact");
-      }
-      static fromDER(hex) {
-        return Signature.fromBytes(ensureBytes("sig", hex), "der");
-      }
-      normalizeS() {
-        return this.hasHighS() ? new Signature(this.r, Fn.neg(this.s), this.recovery) : this;
-      }
-      toDERRawBytes() {
-        return this.toBytes("der");
-      }
-      toDERHex() {
-        return bytesToHex(this.toBytes("der"));
-      }
-      toCompactRawBytes() {
-        return this.toBytes("compact");
-      }
-      toCompactHex() {
-        return bytesToHex(this.toBytes("compact"));
+        return bytesToHex2(this.toBytes(format));
       }
     }
-    const bits2int = ecdsaOpts.bits2int || function bits2int_def(bytes) {
+    Object.freeze(Signature.prototype);
+    Object.freeze(Signature);
+    const bits2int = opts.bits2int === void 0 ? function bits2int_def(bytes) {
       if (bytes.length > 8192)
         throw new Error("input is too large");
       const num = bytesToNumberBE(bytes);
       const delta = bytes.length * 8 - fnBits;
       return delta > 0 ? num >> BigInt(delta) : num;
-    };
-    const bits2int_modN = ecdsaOpts.bits2int_modN || function bits2int_modN_def(bytes) {
+    } : opts.bits2int;
+    const bits2int_modN = opts.bits2int_modN === void 0 ? function bits2int_modN_def(bytes) {
       return Fn.create(bits2int(bytes));
-    };
+    } : opts.bits2int_modN;
     const ORDER_MASK = bitMask(fnBits);
     function int2octets(num) {
-      aInRange("num < 2^" + fnBits, num, _0n4, ORDER_MASK);
+      aInRange("num < 2^" + fnBits, num, _0n5, ORDER_MASK);
       return Fn.toBytes(num);
     }
     function validateMsgAndHash(message, prehash) {
-      _abytes2(message, void 0, "message");
-      return prehash ? _abytes2(hash(message), void 0, "prehashed message") : message;
+      abytes2(message, void 0, "message");
+      return prehash ? abytes2(hash_(message), void 0, "prehashed message") : message;
     }
-    function prepSig(message, privateKey, opts) {
-      if (["recovered", "canonical"].some((k) => k in opts))
-        throw new Error("sign() legacy options not supported");
-      const { lowS, prehash, extraEntropy } = validateSigOpts(opts, defaultSigOpts);
+    function prepSig(message, secretKey, opts2) {
+      const { lowS, prehash, extraEntropy } = validateSigOpts(opts2, defaultSigOpts);
       message = validateMsgAndHash(message, prehash);
       const h1int = bits2int_modN(message);
-      const d = _normFnElement(Fn, privateKey);
+      const d = Fn.fromBytes(secretKey);
+      if (!Fn.isValidNot0(d))
+        throw new Error("invalid private key");
       const seedArgs = [int2octets(d), int2octets(h1int)];
       if (extraEntropy != null && extraEntropy !== false) {
-        const e = extraEntropy === true ? randomBytes3(lengths.secretKey) : extraEntropy;
-        seedArgs.push(ensureBytes("extraEntropy", e));
+        const e = extraEntropy === true ? randomBytes4(lengths.secretKey) : extraEntropy;
+        seedArgs.push(abytes2(e, void 0, "extraEntropy"));
       }
-      const seed = concatBytes(...seedArgs);
+      const seed = concatBytes2(...seedArgs);
       const m = h1int;
       function k2sig(kBytes) {
         const k = bits2int(kBytes);
         if (!Fn.isValidNot0(k))
           return;
-        const ik = Fn.inv(k);
         const q = Point.BASE.multiply(k).toAffine();
         const r = Fn.create(q.x);
-        if (r === _0n4)
+        if (r === _0n5)
           return;
-        const s = Fn.create(ik * Fn.create(m + r * d));
-        if (s === _0n4)
+        let s;
+        if (csprng !== void 0) {
+          const b = bytesToNumberBE(mapHashToField(csprng(blindLength), CURVE_ORDER2));
+          const ibk = Fn.inv(Fn.mul(b, k));
+          const bm = Fn.mul(b, m);
+          const bd = Fn.mul(b, d);
+          s = Fn.create(ibk * Fn.create(bm + bd * r));
+        } else {
+          const ik = invertCt(k, CURVE_ORDER2);
+          s = Fn.create(ik * Fn.create(m + r * d));
+        }
+        if (s === _0n5)
           return;
-        let recovery = (q.x === r ? 0 : 2) | Number(q.y & _1n4);
+        let recovery = getRecoveryBit(q.x, q.y, r);
         let normS = s;
         if (lowS && isBiggerThanHalfOrder(s)) {
           normS = Fn.neg(s);
           recovery ^= 1;
         }
-        return new Signature(r, normS, recovery);
+        return new Signature(r, normS, hasLargeRecoveryLifts ? void 0 : recovery);
       }
       return { seed, k2sig };
     }
-    function sign(message, secretKey, opts = {}) {
-      message = ensureBytes("message", message);
-      const { seed, k2sig } = prepSig(message, secretKey, opts);
-      const drbg = createHmacDrbg(hash.outputLen, Fn.BYTES, hmac2);
+    function sign(message, secretKey, opts2 = {}) {
+      const { seed, k2sig } = prepSig(message, secretKey, opts2);
+      const drbg = createHmacDrbg(hash_.outputLen, Fn.BYTES, hmac2);
       const sig = drbg(seed, k2sig);
-      return sig;
+      return sig.toBytes(opts2.format);
     }
-    function tryParsingSig(sg) {
-      let sig = void 0;
-      const isHex = typeof sg === "string" || isBytes(sg);
-      const isObj = !isHex && sg !== null && typeof sg === "object" && typeof sg.r === "bigint" && typeof sg.s === "bigint";
-      if (!isHex && !isObj)
-        throw new Error("invalid signature, expected Uint8Array, hex string or Signature instance");
-      if (isObj) {
-        sig = new Signature(sg.r, sg.s);
-      } else if (isHex) {
-        try {
-          sig = Signature.fromBytes(ensureBytes("sig", sg), "der");
-        } catch (derError) {
-          if (!(derError instanceof DER.Err))
-            throw derError;
-        }
-        if (!sig) {
-          try {
-            sig = Signature.fromBytes(ensureBytes("sig", sg), "compact");
-          } catch (error) {
-            return false;
-          }
-        }
+    function verify(signature, message, publicKey, opts2 = {}) {
+      const { lowS, prehash, format } = validateSigOpts(opts2, defaultSigOpts);
+      publicKey = abytes2(publicKey, void 0, "publicKey");
+      message = validateMsgAndHash(message, prehash);
+      if (!isBytes2(signature)) {
+        const end = signature instanceof Signature ? ", use sig.toBytes()" : "";
+        throw new Error("verify expects Uint8Array signature" + end);
       }
-      if (!sig)
-        return false;
-      return sig;
-    }
-    function verify(signature, message, publicKey, opts = {}) {
-      const { lowS, prehash, format } = validateSigOpts(opts, defaultSigOpts);
-      publicKey = ensureBytes("publicKey", publicKey);
-      message = validateMsgAndHash(ensureBytes("message", message), prehash);
-      if ("strict" in opts)
-        throw new Error("options.strict was renamed to lowS");
-      const sig = format === void 0 ? tryParsingSig(signature) : Signature.fromBytes(ensureBytes("sig", signature), format);
-      if (sig === false)
-        return false;
+      validateSigLength(signature, format);
       try {
+        const sig = Signature.fromBytes(signature, format);
         const P = Point.fromBytes(publicKey);
+        if (P.is0())
+          return false;
         if (lowS && sig.hasHighS())
           return false;
         const { r, s } = sig;
@@ -2936,17 +3284,22 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
         const is = Fn.inv(s);
         const u1 = Fn.create(h * is);
         const u2 = Fn.create(r * is);
-        const R = Point.BASE.multiplyUnsafe(u1).add(P.multiplyUnsafe(u2));
+        const R = Point.BASE.mulAddUnsafe(u1, P, u2);
         if (R.is0())
           return false;
-        const v = Fn.create(R.x);
-        return v === r;
+        const q = R.toAffine();
+        const v = Fn.create(q.x);
+        if (v !== r)
+          return false;
+        if (format === "recovered" && sig.recovery !== getRecoveryBit(q.x, q.y, r))
+          return false;
+        return true;
       } catch (e) {
         return false;
       }
     }
-    function recoverPublicKey(signature, message, opts = {}) {
-      const { prehash } = validateSigOpts(opts, defaultSigOpts);
+    function recoverPublicKey(signature, message, opts2 = {}) {
+      const { prehash } = validateSigOpts(opts2, defaultSigOpts);
       message = validateMsgAndHash(message, prehash);
       return Signature.fromBytes(signature, "recovered").recoverPublicKey(message).toBytes();
     }
@@ -2954,78 +3307,18 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       keygen,
       getPublicKey,
       getSharedSecret,
-      utils: utils2,
+      utils,
       lengths,
       Point,
       sign,
       verify,
       recoverPublicKey,
       Signature,
-      hash
+      hash: hash_
     });
-  }
-  function _weierstrass_legacy_opts_to_new(c) {
-    const CURVE = {
-      a: c.a,
-      b: c.b,
-      p: c.Fp.ORDER,
-      n: c.n,
-      h: c.h,
-      Gx: c.Gx,
-      Gy: c.Gy
-    };
-    const Fp = c.Fp;
-    let allowedLengths = c.allowedPrivateKeyLengths ? Array.from(new Set(c.allowedPrivateKeyLengths.map((l) => Math.ceil(l / 2)))) : void 0;
-    const Fn = Field(CURVE.n, {
-      BITS: c.nBitLength,
-      allowedLengths,
-      modFromBytes: c.wrapPrivateKey
-    });
-    const curveOpts = {
-      Fp,
-      Fn,
-      allowInfinityPoint: c.allowInfinityPoint,
-      endo: c.endo,
-      isTorsionFree: c.isTorsionFree,
-      clearCofactor: c.clearCofactor,
-      fromBytes: c.fromBytes,
-      toBytes: c.toBytes
-    };
-    return { CURVE, curveOpts };
-  }
-  function _ecdsa_legacy_opts_to_new(c) {
-    const { CURVE, curveOpts } = _weierstrass_legacy_opts_to_new(c);
-    const ecdsaOpts = {
-      hmac: c.hmac,
-      randomBytes: c.randomBytes,
-      lowS: c.lowS,
-      bits2int: c.bits2int,
-      bits2int_modN: c.bits2int_modN
-    };
-    return { CURVE, curveOpts, hash: c.hash, ecdsaOpts };
-  }
-  function _ecdsa_new_output_to_legacy(c, _ecdsa) {
-    const Point = _ecdsa.Point;
-    return Object.assign({}, _ecdsa, {
-      ProjectivePoint: Point,
-      CURVE: Object.assign({}, c, nLength(Point.Fn.ORDER, Point.Fn.BITS))
-    });
-  }
-  function weierstrass(c) {
-    const { CURVE, curveOpts, hash, ecdsaOpts } = _ecdsa_legacy_opts_to_new(c);
-    const Point = weierstrassN(CURVE, curveOpts);
-    const signs = ecdsa(Point, hash, ecdsaOpts);
-    return _ecdsa_new_output_to_legacy(c, signs);
   }
 
-  // node_modules/@noble/curves/esm/_shortw_utils.js
-  /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
-  function createCurve(curveDef, defHash) {
-    const create = (hash) => weierstrass({ ...curveDef, hash });
-    return { ...create(defHash), create };
-  }
-
-  // node_modules/@noble/curves/esm/secp256k1.js
+  // node_modules/@noble/curves/secp256k1.js
   /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   var secp256k1_CURVE = {
     p: BigInt("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"),
@@ -3066,347 +3359,111 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       throw new Error("Cannot find square root");
     return root;
   }
-  var Fpk1 = Field(secp256k1_CURVE.p, { sqrt: sqrtMod });
-  var secp256k1 = createCurve({ ...secp256k1_CURVE, Fp: Fpk1, lowS: true, endo: secp256k1_ENDO }, sha256);
+  var Fpk1 = /*  */ Field(secp256k1_CURVE.p, { sqrt: sqrtMod });
+  var Pointk1 = /*  */ weierstrass(secp256k1_CURVE, {
+    Fp: Fpk1,
+    endo: secp256k1_ENDO
+  });
+  var secp256k1 = /*  */ ecdsa(Pointk1, sha256);
 
-  // node_modules/@noble/hashes/esm/sha512.js
-  var sha5122 = sha512;
-
-  // node_modules/@noble/hashes/esm/pbkdf2.js
+  // node_modules/@noble/hashes/pbkdf2.js
   function pbkdf2Init(hash, _password, _salt, _opts) {
     ahash(hash);
     const opts = checkOpts({ dkLen: 32, asyncTick: 10 }, _opts);
     const { c, dkLen, asyncTick } = opts;
-    anumber(c);
-    anumber(dkLen);
-    anumber(asyncTick);
+    anumber(c, "c");
+    anumber(dkLen, "dkLen");
+    anumber(asyncTick, "asyncTick");
     if (c < 1)
-      throw new Error("iterations (c) should be >= 1");
-    const password = kdfInputToBytes(_password);
-    const salt = kdfInputToBytes(_salt);
-    const DK = new Uint8Array(dkLen);
-    const PRF = hmac.create(hash, password);
-    const PRFSalt = PRF._cloneInto().update(salt);
-    return { c, dkLen, asyncTick, DK, PRF, PRFSalt };
+      throw new Error('"c" (iterations) must be >= 1');
+    if (dkLen < 1)
+      throw new Error('"dkLen" must be >= 1');
+    if (dkLen > (2 ** 32 - 1) * hash.outputLen)
+      throw new Error("derived key too long");
+    const p = kdfInputToBytes(_password, "password");
+    try {
+      const s = kdfInputToBytes(_salt, "salt");
+      try {
+        const DK = new Uint8Array(dkLen);
+        const { iHash, oHash, outputLen } = hmac.create(hash, p);
+        const u = new Uint8Array(outputLen);
+        const eng = pbkdf2Engine(iHash, oHash, s, u);
+        return { c, dkLen, asyncTick, DK, outputLen, eng };
+      } finally {
+        if (typeof _salt === "string")
+          clean(s);
+      }
+    } finally {
+      if (typeof _password === "string")
+        clean(p);
+    }
   }
-  function pbkdf2Output(PRF, PRFSalt, DK, prfW, u) {
-    PRF.destroy();
-    PRFSalt.destroy();
-    if (prfW)
-      prfW.destroy();
-    clean(u);
-    return DK;
+  function pbkdf2Engine(iHash, oHash, salt, u) {
+    const counter = new Uint8Array(4);
+    const view = createView(counter);
+    const salted = iHash._cloneInto().update(salt);
+    const work = oHash._cloneInto();
+    const iClone = iHash._cloneInto;
+    const oClone = oHash._cloneInto;
+    return {
+      u1: (ti, Ti) => {
+        view.setInt32(0, ti, false);
+        salted._cloneInto(work).update(counter).digestInto(u);
+        oHash._cloneInto(work).update(u).digestInto(u);
+        Ti.set(u.subarray(0, Ti.length));
+      },
+      // Whole `F` inner loop for the sync variant: one optimized function owns the hot loop.
+      rounds: (c, Ti) => {
+        for (let ui = 1; ui < c; ui++) {
+          iClone.call(iHash, work).update(u).digestInto(u);
+          oClone.call(oHash, work).update(u).digestInto(u);
+          for (let i = 0; i < Ti.length; i++)
+            Ti[i] ^= u[i];
+        }
+      },
+      output: (DK) => {
+        iHash.destroy();
+        oHash.destroy();
+        salted.destroy();
+        work.destroy();
+        clean(u);
+        return DK;
+      }
+    };
   }
   function pbkdf2(hash, password, salt, opts) {
-    const { c, dkLen, DK, PRF, PRFSalt } = pbkdf2Init(hash, password, salt, opts);
-    let prfW;
-    const arr = new Uint8Array(4);
-    const view = createView(arr);
-    const u = new Uint8Array(PRF.outputLen);
-    for (let ti = 1, pos = 0; pos < dkLen; ti++, pos += PRF.outputLen) {
-      const Ti = DK.subarray(pos, pos + PRF.outputLen);
-      view.setInt32(0, ti, false);
-      (prfW = PRFSalt._cloneInto(prfW)).update(arr).digestInto(u);
-      Ti.set(u.subarray(0, Ti.length));
-      for (let ui = 1; ui < c; ui++) {
-        PRF._cloneInto(prfW).update(u).digestInto(u);
-        for (let i = 0; i < Ti.length; i++)
-          Ti[i] ^= u[i];
-      }
+    const { c, dkLen, DK, outputLen, eng } = pbkdf2Init(hash, password, salt, opts);
+    for (let ti = 1, pos = 0; pos < dkLen; ti++, pos += outputLen) {
+      const Ti = DK.subarray(pos, pos + outputLen);
+      eng.u1(ti, Ti);
+      eng.rounds(c, Ti);
     }
-    return pbkdf2Output(PRF, PRFSalt, DK, prfW, u);
+    return eng.output(DK);
   }
 
-  // node_modules/@scure/base/lib/esm/index.js
-  /*! scure-base - MIT License (c) 2022 Paul Miller (paulmillr.com) */
-  function isBytes2(a) {
-    return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
-  }
-  function isArrayOf(isString, arr) {
-    if (!Array.isArray(arr))
-      return false;
-    if (arr.length === 0)
-      return true;
-    if (isString) {
-      return arr.every((item) => typeof item === "string");
-    } else {
-      return arr.every((item) => Number.isSafeInteger(item));
-    }
-  }
-  function afn(input) {
-    if (typeof input !== "function")
-      throw new Error("function expected");
-    return true;
-  }
-  function astr(label, input) {
-    if (typeof input !== "string")
-      throw new Error(`${label}: string expected`);
-    return true;
-  }
-  function anumber2(n) {
-    if (!Number.isSafeInteger(n))
-      throw new Error(`invalid integer: ${n}`);
-  }
-  function aArr(input) {
-    if (!Array.isArray(input))
-      throw new Error("array expected");
-  }
-  function astrArr(label, input) {
-    if (!isArrayOf(true, input))
-      throw new Error(`${label}: array of strings expected`);
-  }
-  function anumArr(label, input) {
-    if (!isArrayOf(false, input))
-      throw new Error(`${label}: array of numbers expected`);
-  }
-  // 
-  function chain(...args) {
-    const id = (a) => a;
-    const wrap = (a, b) => (c) => a(b(c));
-    const encode2 = args.map((x) => x.encode).reduceRight(wrap, id);
-    const decode = args.map((x) => x.decode).reduce(wrap, id);
-    return { encode: encode2, decode };
-  }
-  // 
-  function alphabet(letters) {
-    const lettersA = typeof letters === "string" ? letters.split("") : letters;
-    const len = lettersA.length;
-    astrArr("alphabet", lettersA);
-    const indexes = new Map(lettersA.map((l, i) => [l, i]));
-    return {
-      encode: (digits) => {
-        aArr(digits);
-        return digits.map((i) => {
-          if (!Number.isSafeInteger(i) || i < 0 || i >= len)
-            throw new Error(`alphabet.encode: digit index outside alphabet "${i}". Allowed: ${letters}`);
-          return lettersA[i];
-        });
-      },
-      decode: (input) => {
-        aArr(input);
-        return input.map((letter) => {
-          astr("alphabet.decode", letter);
-          const i = indexes.get(letter);
-          if (i === void 0)
-            throw new Error(`Unknown letter: "${letter}". Allowed: ${letters}`);
-          return i;
-        });
-      }
-    };
-  }
-  // 
-  function join(separator = "") {
-    astr("join", separator);
-    return {
-      encode: (from) => {
-        astrArr("join.decode", from);
-        return from.join(separator);
-      },
-      decode: (to) => {
-        astr("join.decode", to);
-        return to.split(separator);
-      }
-    };
-  }
-  // 
-  function padding(bits, chr = "=") {
-    anumber2(bits);
-    astr("padding", chr);
-    return {
-      encode(data) {
-        astrArr("padding.encode", data);
-        while (data.length * bits % 8)
-          data.push(chr);
-        return data;
-      },
-      decode(input) {
-        astrArr("padding.decode", input);
-        let end = input.length;
-        if (end * bits % 8)
-          throw new Error("padding: invalid, string should have whole number of bytes");
-        for (; end > 0 && input[end - 1] === chr; end--) {
-          const last = end - 1;
-          const byte = last * bits;
-          if (byte % 8 === 0)
-            throw new Error("padding: invalid, string has too much padding");
-        }
-        return input.slice(0, end);
-      }
-    };
-  }
-  function convertRadix(data, from, to) {
-    if (from < 2)
-      throw new Error(`convertRadix: invalid from=${from}, base cannot be less than 2`);
-    if (to < 2)
-      throw new Error(`convertRadix: invalid to=${to}, base cannot be less than 2`);
-    aArr(data);
-    if (!data.length)
-      return [];
-    let pos = 0;
-    const res = [];
-    const digits = Array.from(data, (d) => {
-      anumber2(d);
-      if (d < 0 || d >= from)
-        throw new Error(`invalid integer: ${d}`);
-      return d;
-    });
-    const dlen = digits.length;
-    while (true) {
-      let carry = 0;
-      let done = true;
-      for (let i = pos; i < dlen; i++) {
-        const digit = digits[i];
-        const fromCarry = from * carry;
-        const digitBase = fromCarry + digit;
-        if (!Number.isSafeInteger(digitBase) || fromCarry / from !== carry || digitBase - digit !== fromCarry) {
-          throw new Error("convertRadix: carry overflow");
-        }
-        const div = digitBase / to;
-        carry = digitBase % to;
-        const rounded = Math.floor(div);
-        digits[i] = rounded;
-        if (!Number.isSafeInteger(rounded) || rounded * to + carry !== digitBase)
-          throw new Error("convertRadix: carry overflow");
-        if (!done)
-          continue;
-        else if (!rounded)
-          pos = i;
-        else
-          done = false;
-      }
-      res.push(carry);
-      if (done)
-        break;
-    }
-    for (let i = 0; i < data.length - 1 && data[i] === 0; i++)
-      res.push(0);
-    return res.reverse();
-  }
-  var gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
-  var radix2carry = /*  */ (from, to) => from + (to - gcd(from, to));
-  var powers = /*  */ (() => {
-    let res = [];
-    for (let i = 0; i < 40; i++)
-      res.push(2 ** i);
-    return res;
-  })();
-  function convertRadix2(data, from, to, padding2) {
-    aArr(data);
-    if (from <= 0 || from > 32)
-      throw new Error(`convertRadix2: wrong from=${from}`);
-    if (to <= 0 || to > 32)
-      throw new Error(`convertRadix2: wrong to=${to}`);
-    if (/*  */ radix2carry(from, to) > 32) {
-      throw new Error(`convertRadix2: carry overflow from=${from} to=${to} carryBits=${/*  */ radix2carry(from, to)}`);
-    }
-    let carry = 0;
-    let pos = 0;
-    const max = powers[from];
-    const mask = powers[to] - 1;
-    const res = [];
-    for (const n of data) {
-      anumber2(n);
-      if (n >= max)
-        throw new Error(`convertRadix2: invalid data word=${n} from=${from}`);
-      carry = carry << from | n;
-      if (pos + from > 32)
-        throw new Error(`convertRadix2: carry overflow pos=${pos} from=${from}`);
-      pos += from;
-      for (; pos >= to; pos -= to)
-        res.push((carry >> pos - to & mask) >>> 0);
-      const pow = powers[pos];
-      if (pow === void 0)
-        throw new Error("invalid carry");
-      carry &= pow - 1;
-    }
-    carry = carry << to - pos & mask;
-    if (!padding2 && pos >= from)
-      throw new Error("Excess padding");
-    if (!padding2 && carry > 0)
-      throw new Error(`Non-zero padding: ${carry}`);
-    if (padding2 && pos > 0)
-      res.push(carry >>> 0);
-    return res;
-  }
-  // 
-  function radix(num) {
-    anumber2(num);
-    const _256 = 2 ** 8;
-    return {
-      encode: (bytes) => {
-        if (!isBytes2(bytes))
-          throw new Error("radix.encode input should be Uint8Array");
-        return convertRadix(Array.from(bytes), _256, num);
-      },
-      decode: (digits) => {
-        anumArr("radix.decode", digits);
-        return Uint8Array.from(convertRadix(digits, num, _256));
-      }
-    };
-  }
-  // 
-  function radix2(bits, revPadding = false) {
-    anumber2(bits);
-    if (bits <= 0 || bits > 32)
-      throw new Error("radix2: bits should be in (0..32]");
-    if (/*  */ radix2carry(8, bits) > 32 || /*  */ radix2carry(bits, 8) > 32)
-      throw new Error("radix2: carry overflow");
-    return {
-      encode: (bytes) => {
-        if (!isBytes2(bytes))
-          throw new Error("radix2.encode input should be Uint8Array");
-        return convertRadix2(Array.from(bytes), 8, bits, !revPadding);
-      },
-      decode: (digits) => {
-        anumArr("radix2.decode", digits);
-        return Uint8Array.from(convertRadix2(digits, bits, 8, revPadding));
-      }
-    };
-  }
-  function checksum(len, fn) {
-    anumber2(len);
-    afn(fn);
-    return {
-      encode(data) {
-        if (!isBytes2(data))
-          throw new Error("checksum.encode: input should be Uint8Array");
-        const sum = fn(data).slice(0, len);
-        const res = new Uint8Array(data.length + len);
-        res.set(data);
-        res.set(sum, data.length);
-        return res;
-      },
-      decode(data) {
-        if (!isBytes2(data))
-          throw new Error("checksum.decode: input should be Uint8Array");
-        const payload = data.slice(0, -len);
-        const oldChecksum = data.slice(-len);
-        const newChecksum = fn(payload).slice(0, len);
-        for (let i = 0; i < len; i++)
-          if (newChecksum[i] !== oldChecksum[i])
-            throw new Error("Invalid checksum");
-        return payload;
-      }
-    };
-  }
-  var utils = {
-    alphabet,
-    chain,
-    checksum,
-    convertRadix,
-    convertRadix2,
-    radix,
-    radix2,
-    join,
-    padding
-  };
-
-  // node_modules/@scure/bip39/esm/index.js
+  // node_modules/@scure/bip39/index.js
   /*! scure-bip39 - MIT License (c) 2022 Patricio Palladino, Paul Miller (paulmillr.com) */
   var isJapanese = (wordlist2) => wordlist2[0] === "\u3042\u3044\u3053\u304F\u3057\u3093";
+  function isWellFormedUnicode(value) {
+    for (let i = 0; i < value.length; i++) {
+      const current = value.charCodeAt(i);
+      if (current >= 55296 && current <= 56319) {
+        if (i + 1 >= value.length)
+          return false;
+        const next = value.charCodeAt(++i);
+        if (next < 56320 || next > 57343)
+          return false;
+      } else if (current >= 56320 && current <= 57343) {
+        return false;
+      }
+    }
+    return true;
+  }
   function nfkd(str) {
     if (typeof str !== "string")
       throw new TypeError("invalid mnemonic type: " + typeof str);
+    if (!isWellFormedUnicode(str))
+      throw new TypeError("expected well-formed Unicode string");
     return str.normalize("NFKD");
   }
   function normalize(str) {
@@ -3417,30 +3474,78 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     return { nfkd: norm, words };
   }
   function aentropy(ent) {
-    abytes(ent, 16, 20, 24, 28, 32);
+    abytes(ent);
+    if (![16, 20, 24, 28, 32].includes(ent.length))
+      throw new RangeError("invalid entropy length");
   }
   var calcChecksum = (entropy) => {
     const bitsLeft = 8 - entropy.length / 4;
-    return new Uint8Array([sha256(entropy)[0] >> bitsLeft << bitsLeft]);
+    return sha256(entropy)[0] >> bitsLeft << bitsLeft;
   };
-  function getCoder(wordlist2) {
+  function awordlist(wordlist2) {
     if (!Array.isArray(wordlist2) || wordlist2.length !== 2048 || typeof wordlist2[0] !== "string")
-      throw new Error("Wordlist: expected array of 2048 strings");
+      throw new TypeError("Wordlist: expected array of 2048 strings");
     wordlist2.forEach((i) => {
       if (typeof i !== "string")
-        throw new Error("wordlist: non-string element: " + i);
+        throw new TypeError("wordlist: non-string element: " + i);
+      if (!isWellFormedUnicode(i))
+        throw new TypeError("wordlist: expected well-formed Unicode string");
     });
-    return utils.chain(utils.checksum(1, calcChecksum), utils.radix2(11, true), utils.alphabet(wordlist2));
+  }
+  function encodeWords(entropy, wordlist2) {
+    awordlist(wordlist2);
+    const bytes = new Uint8Array(entropy.length + 1);
+    bytes.set(entropy);
+    bytes[entropy.length] = calcChecksum(entropy);
+    const words = [];
+    let carry = 0;
+    let bits = 0;
+    for (const byte of bytes) {
+      carry = carry << 8 | byte;
+      bits += 8;
+      if (bits >= 11) {
+        bits -= 11;
+        words.push(wordlist2[carry >>> bits & 2047]);
+        carry &= (1 << bits) - 1;
+      }
+    }
+    return words;
+  }
+  function decodeWords(words, wordlist2) {
+    awordlist(wordlist2);
+    const entLen = words.length / 3 * 4;
+    const bytes = new Uint8Array(entLen + 1);
+    let carry = 0;
+    let bits = 0;
+    let pos = 0;
+    for (const word of words) {
+      const index = wordlist2.indexOf(word);
+      if (index === -1)
+        throw new Error("Unknown word: " + word);
+      carry = carry << 11 | index;
+      bits += 11;
+      while (bits >= 8) {
+        bits -= 8;
+        bytes[pos++] = carry >>> bits & 255;
+      }
+      carry &= (1 << bits) - 1;
+    }
+    if (bits > 0)
+      bytes[pos] = carry << 8 - bits;
+    const entropy = bytes.subarray(0, entLen);
+    if (bytes[entLen] !== calcChecksum(entropy))
+      throw new Error("Invalid checksum");
+    return Uint8Array.from(entropy);
   }
   function mnemonicToEntropy(mnemonic, wordlist2) {
     const { words } = normalize(mnemonic);
-    const entropy = getCoder(wordlist2).decode(words);
+    const entropy = decodeWords(words, wordlist2);
     aentropy(entropy);
     return entropy;
   }
   function entropyToMnemonic(entropy, wordlist2) {
     aentropy(entropy);
-    const words = getCoder(wordlist2).encode(entropy);
+    const words = encodeWords(entropy, wordlist2);
     return words.join(isJapanese(wordlist2) ? "\u3000" : " ");
   }
   function validateMnemonic(mnemonic, wordlist2) {
@@ -3451,13 +3556,20 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     }
     return true;
   }
-  var psalt = (passphrase) => nfkd("mnemonic" + passphrase);
+  var psalt = (passphrase) => {
+    if (typeof passphrase !== "string")
+      throw new TypeError("invalid passphrase type: " + typeof passphrase);
+    return nfkd("mnemonic" + passphrase);
+  };
   function mnemonicToSeedSync(mnemonic, passphrase = "") {
-    return pbkdf2(sha512, normalize(mnemonic).nfkd, psalt(passphrase), { c: 2048, dkLen: 64 });
+    return pbkdf2(sha512, normalize(mnemonic).nfkd, psalt(passphrase), {
+      c: 2048,
+      dkLen: 64
+    });
   }
 
-  // node_modules/@scure/bip39/esm/wordlists/english.js
-  var wordlist = `abandon
+  // node_modules/@scure/bip39/wordlists/english.js
+  var wordlist = /*  */ Object.freeze(`abandon
 ability
 able
 about
@@ -5504,7 +5616,7 @@ youth
 zebra
 zero
 zone
-zoo`.split("\n");
+zoo`.split("\n"));
 
   // node_modules/dcr-ts/dist/index.js
   var BRAND = /*  */ Symbol.for("dcr-ts.DcrError");
@@ -6078,7 +6190,7 @@ zoo`.split("\n");
     return blake256(blake256(data));
   }
   function hash160(data) {
-    return ripemd1602(blake256(data));
+    return ripemd160(blake256(data));
   }
   var ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   var BASE = 58n;
@@ -6126,20 +6238,20 @@ zoo`.split("\n");
     return out;
   }
   function checkEncode(data) {
-    const checksum2 = hash256(data).subarray(0, 4);
+    const checksum = hash256(data).subarray(0, 4);
     const full = new Uint8Array(data.length + 4);
     full.set(data);
-    full.set(checksum2, data.length);
+    full.set(checksum, data.length);
     return base58Encode(full);
   }
   function checkDecode(str) {
     const full = base58Decode(str);
     if (full.length < 4) throw err("bad-length", "base58check", "input is shorter than the 4-byte checksum");
     const data = full.subarray(0, full.length - 4);
-    const checksum2 = full.subarray(full.length - 4);
+    const checksum = full.subarray(full.length - 4);
     const expected = hash256(data).subarray(0, 4);
     for (let i = 0; i < 4; i++) {
-      if (checksum2[i] !== expected[i]) throw err("bad-checksum", "base58check", "checksum does not match");
+      if (checksum[i] !== expected[i]) throw err("bad-checksum", "base58check", "checksum does not match");
     }
     return data.slice();
   }
@@ -6200,7 +6312,7 @@ zoo`.split("\n");
     slip44: 1
   };
   var networks = { mainnet, testnet3, simnet, regnet };
-  var CURVE_ORDER = secp256k1.CURVE.n;
+  var CURVE_ORDER = secp256k1.Point.Fn.ORDER;
   var ED25519_CURVE_ORDER = 2n ** 252n + 27742317777372353535851937790883648493n;
   function isValidPrivateKey(key) {
     if (!isBytes3(key) || key.length !== 32) return false;
@@ -6225,7 +6337,7 @@ zoo`.split("\n");
   function isValidPublicKey(key) {
     if (!isBytes3(key)) return false;
     try {
-      secp256k1.ProjectivePoint.fromHex(key);
+      secp256k1.Point.fromBytes(key);
       return true;
     } catch {
       return false;
@@ -6278,7 +6390,7 @@ zoo`.split("\n");
   }
   function parsePublicKeyPoint(key) {
     try {
-      return secp256k1.ProjectivePoint.fromHex(key);
+      return secp256k1.Point.fromBytes(key);
     } catch {
       return null;
     }
@@ -6286,14 +6398,10 @@ zoo`.split("\n");
   function publicKeyTweakAddPoint(parent, il) {
     const ilInt = bytesToBigInt(il);
     if (ilInt >= CURVE_ORDER || ilInt === 0n) return null;
-    const P = secp256k1.ProjectivePoint;
-    try {
-      const child = P.BASE.multiply(ilInt).add(parent);
-      if (child.equals(P.ZERO)) return null;
-      return child.toRawBytes(true);
-    } catch {
-      return null;
-    }
+    const P = secp256k1.Point;
+    const child = P.BASE.multiply(ilInt).add(parent);
+    if (child.equals(P.ZERO)) return null;
+    return child.toBytes(true);
   }
   var MAX_ADDRESS_LENGTH = maxBase58Length(33 + 2 + 4);
   var PREFIXES = [];
@@ -6421,7 +6529,7 @@ zoo`.split("\n");
       if (seed.length < 16 || seed.length > 64) {
         throw err("out-of-range", "ExtendedKey.fromSeed", `seed must be 16..64 bytes, got ${seed.length}`);
       }
-      const I = hmac(sha5122, MASTER_HMAC_KEY, seed);
+      const I = hmac(sha512, MASTER_HMAC_KEY, seed);
       const il = I.subarray(0, 32);
       const ir = I.subarray(32, 64);
       if (!isValidPrivateKey(il)) throw err("invalid-private-key", "ExtendedKey.fromSeed", "seed produced an unusable master key; retry with a new seed");
@@ -6522,7 +6630,7 @@ zoo`.split("\n");
         data.set(this.compressedPublicKey, 0);
       }
       data.set(ser32(idx), 33);
-      const I = hmac(sha5122, this.chainCodeBytes, data);
+      const I = hmac(sha512, this.chainCodeBytes, data);
       const il = I.subarray(0, 32);
       const childChainCode = I.subarray(32, 64).slice();
       const parentFp = this.fingerprint();
@@ -6726,6 +6834,7 @@ zoo`.split("\n");
     return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
   }
   var MNEMONIC_WORD_COUNTS = [12, 15, 18, 21, 24];
+  var UNPAIRED_SURROGATE = /\p{Surrogate}/u;
   function assertMnemonicString(mnemonic, who) {
     if (typeof mnemonic !== "string") {
       throw err("invalid-argument", who, `mnemonic must be a string, got ${typeof mnemonic}`);
@@ -6735,7 +6844,15 @@ zoo`.split("\n");
     if (typeof passphrase !== "string") {
       throw err("invalid-argument", who, `passphrase must be a string, got ${typeName(passphrase)}`);
     }
+    if (UNPAIRED_SURROGATE.test(passphrase)) {
+      throw err(
+        "invalid-argument",
+        who,
+        "passphrase holds an unpaired UTF-16 surrogate, which has no UTF-8 encoding"
+      );
+    }
   }
+  var CHECKED_WORDLISTS = /*  */ new WeakSet();
   function assertWordlist(wordlist2, who) {
     if (!Array.isArray(wordlist2)) {
       throw err("invalid-argument", who, `wordlist must be an array of 2048 words, got ${typeName(wordlist2)}`);
@@ -6743,6 +6860,35 @@ zoo`.split("\n");
     if (wordlist2.length !== 2048) {
       throw err("invalid-argument", who, `wordlist must hold 2048 words, got ${wordlist2.length}`);
     }
+    if (CHECKED_WORDLISTS.has(wordlist2)) return;
+    const seen = /*  */ new Set();
+    let fixed = Object.isFrozen(wordlist2);
+    for (let i = 0; i < wordlist2.length; i++) {
+      if (fixed) {
+        const slot = Object.getOwnPropertyDescriptor(wordlist2, i);
+        if (slot === void 0 || !("value" in slot)) fixed = false;
+      }
+      const word = wordlist2[i];
+      if (typeof word !== "string") {
+        throw err("invalid-argument", who, `wordlist entry ${i} must be a string, got ${typeName(word)}`);
+      }
+      if (UNPAIRED_SURROGATE.test(word)) {
+        throw err(
+          "invalid-argument",
+          who,
+          `wordlist entry ${i} holds an unpaired UTF-16 surrogate, which has no UTF-8 encoding`
+        );
+      }
+      if (seen.has(word)) {
+        throw err(
+          "invalid-argument",
+          who,
+          `wordlist entries ${wordlist2.indexOf(word)} and ${i} are both ${shown(word)}`
+        );
+      }
+      seen.add(word);
+    }
+    if (fixed) CHECKED_WORDLISTS.add(wordlist2);
   }
   function validateMnemonic2(mnemonic, wordlist$1 = wordlist) {
     assertWordlist(wordlist$1, "validateMnemonic");
@@ -6763,6 +6909,13 @@ zoo`.split("\n");
   function mnemonicToSeed(mnemonic, passphrase = "") {
     assertMnemonicString(mnemonic, "mnemonicToSeed");
     assertPassphrase(passphrase, "mnemonicToSeed");
+    if (UNPAIRED_SURROGATE.test(mnemonic)) {
+      throw err(
+        "invalid-mnemonic",
+        "mnemonicToSeed",
+        "mnemonic holds an unpaired UTF-16 surrogate, which has no UTF-8 encoding"
+      );
+    }
     const words = mnemonic.normalize("NFKD").split(" ").length;
     if (!MNEMONIC_WORD_COUNTS.includes(words)) {
       throw err(
@@ -6775,13 +6928,14 @@ zoo`.split("\n");
   }
 
   // src/dcr-engine.mjs
-  function hexToBytes2(h) {
+  /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+  function hexToBytes3(h) {
     if (h.length % 2) h = "0" + h;
     const a = new Uint8Array(h.length / 2);
     for (let i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16);
     return a;
   }
-  function bytesToHex2(b) {
+  function bytesToHex3(b) {
     let s = "";
     for (let i = 0; i < b.length; i++) s += b[i].toString(16).padStart(2, "0");
     return s;
@@ -6806,7 +6960,7 @@ zoo`.split("\n");
   }
   var addressFromPub = (pubCompressed) => addressFromPubKey(pubCompressed, mainnet);
   var wifFromPriv = (priv32) => encodeWif(priv32, mainnet, SignatureType.Ecdsa);
-  function randomBytes2(n) {
+  function randomBytes3(n) {
     const b = new Uint8Array(n);
     crypto.getRandomValues(b);
     return b;
@@ -6819,24 +6973,24 @@ zoo`.split("\n");
     const pub = pubFromPriv(priv);
     return {
       mnemonic,
-      privHex: bytesToHex2(priv),
+      privHex: bytesToHex3(priv),
       wif: wifFromPriv(priv),
-      pubHex: bytesToHex2(pub),
+      pubHex: bytesToHex3(pub),
       address: addressFromPub(pub),
       path: "m/44'/42'/0'/0/" + index
     };
   }
   async function generateWallet(strength = 256, passphrase = "") {
-    const entropy = randomBytes2(strength / 8);
+    const entropy = randomBytes3(strength / 8);
     const mnemonic = await entropyToMnemonic3(entropy);
     return walletFromMnemonic(mnemonic, passphrase, 0);
   }
   var DCR = {
     // primitives (exposed for testing)
-    hexToBytes: hexToBytes2,
-    bytesToHex: bytesToHex2,
+    hexToBytes: hexToBytes3,
+    bytesToHex: bytesToHex3,
     blake256,
-    ripemd160: ripemd1602,
+    ripemd160,
     base58encode,
     base58checkDcr,
     pubFromPriv,
@@ -6851,7 +7005,7 @@ zoo`.split("\n");
     // high level
     walletFromMnemonic,
     generateWallet,
-    randomBytes: randomBytes2
+    randomBytes: randomBytes3
   };
   var g = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : void 0;
   g.DCR = DCR;
@@ -7847,6 +8001,11 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
         if (enginesLoaded()) return resolve();
         if (window.crypto && !window.crypto.subtle)
           return reject(new Error('Web Crypto is unavailable. Open this file directly (file://) or serve it over https/localhost — plain http disables the crypto APIs this tool needs.'));
+        // The engine's curve library calls Object.hasOwn (ES2022) as it loads, so
+        // on an older browser it throws before defining window.DCR. Say so, rather
+        // than time out into the truncated-file message below.
+        if (typeof Object.hasOwn !== 'function')
+          return reject(new Error('This browser is too old for the embedded crypto engine. Use Chrome or Edge 93, Firefox 92, Safari 15.4, or anything newer.'));
         if (Date.now() - t0 > timeoutMs)
           return reject(new Error('The embedded crypto engines failed to load. The file may be truncated or corrupted — re-download index.html and try again.'));
         setTimeout(poll, 50);
