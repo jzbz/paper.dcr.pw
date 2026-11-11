@@ -1,18 +1,13 @@
 'use strict';
-// Verifies the DCRDEX/Bison/Cake 15-word "seed + birthday" format against:
+// Verifies the shipped DCRDEX/Bison/Cake 15-word "seed + birthday" codec (the
+// app's encode15Word / decode15Word / walletFrom15Entropy, loaded from
+// src/template.html) against:
 //  (a) a literal port of dcrdex client/mnemonic/seed.go bit-packing,
 //  (b) the real vector from decred/libwallet dcr/dcr_test.go (TestDecryptSeed "ok 15"),
 //  (c) the STFifteenWords derivation from libwallet dcr/loader.go.
-const fs = require('fs');
-const path = require('path');
 const nc = require('crypto');
-const src = (p) => path.join(__dirname, '..', 'src', p);
 
-global.window = {};
-eval(fs.readFileSync(src('engine.bundle.js'), 'utf8')); // dcr-ts-backed engine
-const DCR = global.window.DCR;
-eval(fs.readFileSync(src('bip39-wordlist.js'), 'utf8'));
-const WL = global.window.BIP39_WORDLIST;
+const { DCR, BIP39_WORDLIST: WL } = require('./load-app');
 const WLIDX = {}; WL.forEach((w,i)=>WLIDX[w]=i);
 
 const hex = b => Buffer.from(b).toString('hex');
@@ -70,33 +65,6 @@ function goDecode(mnemonic){
   return { entropy, unixSecs: days*SPD };
 }
 
-// ---------- (b) CLEAN MSB-first packing version (what goes in the engine) ----------
-function cleanEncode(entropy, unixSecs){
-  const days = Math.floor(unixSecs/SPD) & 0xffff;
-  const buf = new Uint8Array(ENT+TB+1);
-  buf.set(entropy,0); buf[ENT]=(days>>8)&0xff; buf[ENT+1]=days&0xff;
-  buf[ENT+TB] = sha256(buf.slice(0,ENT+TB))[0] & 0xf8;
-  // read 165 bits MSB-first, 11 bits per word
-  let bits='';
-  for(const byte of buf) bits += byte.toString(2).padStart(8,'0');
-  const words=[];
-  for(let i=0;i<WORDS;i++) words.push(WL[parseInt(bits.slice(i*11,i*11+11),2)]);
-  return words.join(' ');
-}
-function cleanDecode(mnemonic){
-  const words=mnemonic.trim().split(/\s+/);
-  if(words.length!==15) throw new Error('expected 15 words');
-  let bits='';
-  for(const w of words){ const v=WLIDX[w]; if(v===undefined) throw new Error('word not known: '+w); bits+=v.toString(2).padStart(11,'0'); }
-  // 165 bits -> 21 bytes (pad 3 zero bits)
-  bits = bits.padEnd(168,'0');
-  const buf=new Uint8Array(21);
-  for(let i=0;i<21;i++) buf[i]=parseInt(bits.slice(i*8,i*8+8),2);
-  const acquired=buf[ENT+TB]>>3;
-  if(acquired !== (sha256(buf.slice(0,ENT+TB))[0]>>3)) throw new Error('checksum mismatch');
-  return { entropy: buf.slice(0,ENT), unixSecs: ((buf[ENT]<<8)|buf[ENT+1])*SPD };
-}
-
 // ---------- (c) derivation: STFifteenWords (libwallet loader.go) ----------
 function tweakedSeedFor(entropy){
   const b = new Uint8Array(entropy.length+4);
@@ -114,40 +82,44 @@ async function wallet15(entropy){
 }
 
 (async()=>{
-  console.log('\n== (a)vs(b): literal Go packing === clean MSB-first packing (1000 random) ==');
+  console.log('\n== (a): shipped encode15Word === literal Go packing (1000 random) ==');
   let allEq=true;
   for(let t=0;t<1000;t++){
     const e=new Uint8Array(ENT); for(let i=0;i<ENT;i++) e[i]=(Math.random()*256)|0;
     const secs=((Math.random()*65535)|0)*SPD;
-    if(goGenerate(e,secs)!==cleanEncode(e,secs)){ allEq=false; console.log('MISMATCH', hex(e), secs); break; }
+    const mn=await DCR.encode15Word(e,secs);
+    if(goGenerate(e,secs)!==mn){ allEq=false; console.log('ENCODE MISMATCH', hex(e), secs); break; }
+    const d=await DCR.decode15Word(mn.split(' ')), g=goDecode(mn);
+    if(hex(d.entropy)!==hex(g.entropy) || d.unixSecs!==g.unixSecs){ allEq=false; console.log('DECODE MISMATCH', hex(e), secs); break; }
   }
-  check('encoders identical (1000 random)', ''+allEq, 'true');
+  check('shipped codec agrees with the Go port (1000 random)', ''+allEq, 'true');
 
   console.log('\n== (b) REAL vector: libwallet dcr_test.go TestDecryptSeed "ok 15" ==');
   const wantMn = 'peace option follow minute useful proud orphan zero truck response satisfy shell need chef silly';
   const wantBday = 1740614400;
-  const dec = cleanDecode(wantMn);
+  const dec = await DCR.decode15Word(wantMn.split(' '));
   check('decoded birthday == 1740614400', ''+dec.unixSecs, ''+wantBday);
   check('decoded day index', ''+(dec.unixSecs/SPD), '20146');
-  check('re-encode round-trips to same words', cleanEncode(dec.entropy, dec.unixSecs), wantMn);
+  check('re-encode round-trips to same words', await DCR.encode15Word(dec.entropy, dec.unixSecs), wantMn);
   check('go-decode agrees on entropy', hex(goDecode(wantMn).entropy), hex(dec.entropy));
   console.log('  decoded entropy (18B):', hex(dec.entropy));
 
   console.log('\n== (c) STFifteenWords derivation of the real vector ==');
+  // The reference address (README, and the page's self-test), through the
+  // shipped walletFrom15Entropy and through the test's own tweak + derivePath.
+  const want15 = 'DsXUwBFUZsGw6r1JXcAs2EFh6Ug51VDeWez';
   const w = await wallet15(dec.entropy);
+  const ws = await DCR.walletFrom15Entropy(dec.entropy);
   console.log('  tweakedSeed:', w.tweakedSeed);
-  console.log('  address:', w.address, '| wif:', w.wif);
-  check('address Ds', w.address.slice(0,2), 'Ds');
-  check('wif Pm', w.wif.slice(0,2), 'Pm');
-  // determinism
-  const w2 = await wallet15(dec.entropy);
-  check('deterministic', w.address, w2.address);
+  check('shipped address', ws.address, want15);
+  check('oracle address', w.address, want15);
+  check('shipped and oracle WIF agree', ws.wif, w.wif);
 
   console.log('\n== round-trip on fresh random 18-byte entropy ==');
   const e2=DCR.randomBytes(18); const secs2=Math.floor(Date.now()/1000);
-  const mn2=cleanEncode(e2,secs2);
+  const mn2=await DCR.encode15Word(e2,secs2);
   check('fresh 15-word count', ''+mn2.split(' ').length, '15');
-  check('fresh round-trip entropy', hex(cleanDecode(mn2).entropy), hex(e2));
+  check('fresh round-trip entropy', hex((await DCR.decode15Word(mn2.split(' '))).entropy), hex(e2));
 
   console.log(`\n=== ${pass} passed, ${fail} failed ===`);
   process.exit(fail?1:0);

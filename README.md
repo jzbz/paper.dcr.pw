@@ -105,14 +105,24 @@ layer (`src/template.html`), built on those dcr-ts primitives. **QR codes** come
 Project Nayuki's public-domain generator → crisp SVG.
 
 ### Verification — checked against canonical published vectors
-- `test/verify.js` (**38/38**): PGP encode/decode vs `dcrwallet/walletseed` vectors; full
-  derivation (`master + CKD + hash160 + base58check + version bytes`) vs `dcrd/hdkeychain`
-  `dprv`/`dpub` extended-key vectors (exact); secp256k1 generator; BIP39 Trezor vector.
-- `test/verify15.js` (**10/10**): the 15-word encoder is byte-identical to a literal port of
-  the `dcrdex client/mnemonic` Go bit-packing (1000 random cases) and decodes the **real**
-  vector from `decred/libwallet` `dcr/dcr_test.go` (`"peace option follow … silly"` →
-  birthday `1740614400`, exact round-trip); plus the `STFifteenWords` blake256-tweak
-  derivation.
+Both suites load the app's seed code straight out of `src/template.html` (via
+`test/load-app.js`), so they test the encoders, decoders and parser the page ships, and
+keep their own independent implementations as the oracles those are checked against.
+
+- `test/verify.js` (**64/64**): PGP encode/decode, shipped and oracle, vs
+  `dcrwallet/walletseed` vectors; full derivation (`master + CKD + hash160 + base58check +
+  version bytes`) vs `dcrd/hdkeychain` `dprv`/`dpub` extended-key vectors (exact); the
+  native reference address and WIF through the shipped derivation; the verify panel's
+  parser (`restoreFromInput`) across native, hex, 15-word and BIP39 input and its error
+  messages; secp256k1 generator; BIP39 Trezor vector; refusal of malformed helper
+  arguments; a known-answer QR matrix.
+- `test/verify15.js` (**10/10**): the shipped 15-word encoder and decoder agree with a
+  literal port of the `dcrdex client/mnemonic` Go bit-packing (1000 random cases) and decode
+  the **real** vector from `decred/libwallet` `dcr/dcr_test.go` (`"peace option follow …
+  silly"` → birthday `1740614400`, exact round-trip); plus the `STFifteenWords`
+  blake256-tweak derivation to the exact reference address.
+- `test/deliverable.js`: the committed `index.html` is byte for byte what the current
+  sources build, so a stale or hand-edited deliverable fails `npm test`.
 
 Reference vectors:
 - Native seed `000102…1f` → `DsUobw8mjYbXT9BrrwkNt5NaUveJyqiBDtc` /
@@ -146,7 +156,8 @@ code; keeping the crypto as a separate, vector-tested source is the whole point.
 ```
 npm install            # dev deps: dcr-ts (from npm), @noble/hashes, esbuild
 npm run build          # bundle the dcr-ts engine, then inline everything -> index.html
-npm test               # regenerates the bundle, then runs both vector suites (48 checks)
+npm test               # regenerates the bundle, runs both vector suites (74 checks),
+                       # then checks index.html against a fresh build
 ```
 
 The individual steps, if you want them:
@@ -154,20 +165,21 @@ The individual steps, if you want them:
 ```
 npm run bundle         # src/dcr-engine.mjs (+ dcr-ts + noble/scure)  ->  src/engine.bundle.js
 node build.js          # src/template.html + engine.bundle + PGP list + fonts  ->  index.html
-node test/verify.js    # crypto regression vs canonical dcrd/dcrwallet vectors (38/38)
+node test/verify.js    # crypto regression vs canonical dcrd/dcrwallet vectors (64/64)
 node test/verify15.js  # 15-word DCRDEX/Bison format vs canonical vectors (10/10)
+node test/deliverable.js  # index.html matches a fresh build
 ```
 
-`index.html` is 333,815 bytes. Just over half is the crypto engine; most of the rest is
+`index.html` is 340,277 bytes. Just over half is the crypto engine; most of the rest is
 the two embedded fonts and the app itself:
 
 | part | bytes | |
 | --- | ---: | --- |
-| engine bundle | 168,287 | dcr-ts + `@noble` / `@scure`, compiled by esbuild |
+| engine bundle | 170,928 | dcr-ts + `@noble` / `@scure`, compiled by esbuild |
 | fonts | 71,632 | Space Grotesk + JetBrains Mono, base64 woff2 |
-| markup, CSS, app controller, QR, word lists | 93,112 | |
+| markup, CSS, app controller, QR, word lists | 96,933 | |
 | favicon | 784 | base64 SVG |
-| **total** | **333,815** | |
+| **total** | **340,277** | |
 
 Both generated files are deterministic — rebuilding from unchanged sources reproduces
 them byte for byte.
@@ -187,8 +199,10 @@ src/
   pgp-words.json         the 512-word Decred PGP list (byte-exact from dcrwallet)
   fonts/*.woff2          Space Grotesk + JetBrains Mono (latin subset, base64'd at build)
 test/
-  verify.js              engine vectors (PGP, BIP32 dprv/dpub, secp256k1, BIP39 Trezor)
+  load-app.js            loads the engine, word lists, QR and the app's seed script as the page does
+  verify.js              engine + app vectors (PGP, BIP32 dprv/dpub, parser, BIP39 Trezor, QR)
   verify15.js            15-word vectors (literal Go port + libwallet real vector)
+  deliverable.js         index.html == a fresh build of src/
 ```
 
 ---
@@ -198,13 +212,20 @@ test/
 - Anyone holding the **WIF or the seed phrase/hex** controls the funds.
 - The 15-word format bakes in a creation-date "birthday" (day precision) for faster SPV
   restore; it reveals roughly when the wallet was made but never affects the keys.
-- **Content-Security-Policy** (`default-src 'none'`) is embedded in the page — the
-  browser is instructed to refuse *all* network fetches, so even injected code could not
-  exfiltrate keys.
-- **Startup self-test**: before enabling Generate, the page re-derives the canonical
-  test vectors (native 33-word, 15-word Bison, BIP39+passphrase, QR). A truncated or
-  corrupted copy of `index.html` fails loudly and disables itself instead of producing
-  wrong keys. A passing run shows *self-test ✓* in the badge when offline.
+- **Content-Security-Policy** (`default-src 'none'`) is embedded in the page, so the
+  browser refuses every fetch, image, font, form post and connection to the network. It
+  is defence in depth, not a seal: it allows inline script (the whole app is inline), and
+  CSP does not govern top-level navigation, so script running in the page could still
+  send keys out by navigating to a URL that carries them. Nothing in the page builds
+  markup from what the user types or pastes (it is written as text), so there is no way
+  to inject script into an intact copy; a modified copy can rewrite its own policy. The
+  boundary that actually keeps keys secret is running the page **offline**.
+- **Startup self-test**: before anything can produce a key, the page re-derives the
+  canonical test vectors (native 33-word, 15-word Bison, BIP39+passphrase, and a
+  known-answer QR matrix). A truncated or corrupted copy of `index.html` fails loudly and
+  disables itself instead of producing wrong keys: every control is disabled, and every
+  path that generates, imports, verifies or copies keys refuses to run until the self-test
+  has passed. A passing run shows *self-test ✓* in the badge when offline.
 - The header badge warns when the browser is **online**; generate real wallets
   air-gapped.
 - If a **BIP39 passphrase** is set, the screen and the printed sheet both carry a

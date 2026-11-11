@@ -496,6 +496,9 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     var trimmed = (text||'').trim().replace(/\s+/g,' ');
     if (!trimmed) throw E('Enter a seed phrase or hex seed.');
     var tokens = trimmed.split(' ');
+    // No format accepted here is longer than a 64-byte native seed (65 words); refuse
+    // a longer paste before scanning and hashing all of it.
+    if (tokens.length > 65) throw E('Too many words — no supported seed is longer than 65 words.');
 
     // single token -> hex seed (matches dcrwallet DecodeUserInput)
     if (tokens.length === 1){
@@ -509,8 +512,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     }
 
     // Exactly 15 words -> Cake Wallet / DCRDEX / Bison Wallet seed (entropy + birthday).
-    // (A 15-word phrase is not a valid Decred native seed, and Bison/standard-BIP39 15
-    //  share the same checksum, so the Bison interpretation is the meaningful one here.)
+    // (A 15-word phrase is not a valid Decred native seed. Bison and standard BIP39 15
+    //  both put a 5-bit sha256 checksum after the same first 160 bits, so every valid
+    //  BIP39 15-word phrase is also a valid Bison one; there is no telling them apart,
+    //  and the Bison interpretation is the meaningful one here.)
     if (tokens.length === 15){
       var dec = await decode15Word(tokens); // throws precise word/checksum errors
       var canon15 = await encode15Word(dec.entropy, dec.unixSecs);
@@ -521,8 +526,13 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       return w15;
     }
 
-    var allPgp = tokens.every(function(t){ return IDX[t.toLowerCase()] !== undefined; });
+    var pgpCount = tokens.filter(function(t){ return IDX[t.toLowerCase()] !== undefined; }).length;
+    var allPgp = pgpCount === tokens.length;
     var nativeLikely = !BIP39_COUNTS[tokens.length]; // counts that are NOT a BIP39 length
+
+    // A length BIP39 does not use, made mostly of PGP words, is a native phrase with a
+    // typo: let the native decoder name the word instead of the generic message below.
+    if (!allPgp && nativeLikely && pgpCount * 2 > tokens.length) await decodeSeedMnemonic(tokens); // throws
 
     if (allPgp){
       try {
@@ -543,7 +553,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
 
     // BIP39 path
     var valid = await DCR.validateMnemonic(trimmed);
-    if (!valid) throw E('Not a recognized Decred (33-word) or BIP39 (12/15/18/21/24-word) seed phrase. Check for typos or missing words.');
+    if (!valid) throw E('Not a recognized Decred (33-word) or BIP39 (12/18/21/24-word) seed phrase. Check for typos or missing words.');
     var lower = trimmed.toLowerCase();
     var wb = await DCR.walletFromMnemonic(lower, passphrase, 0);
     wb.kind = 'bip39'; wb.mnemonic = lower; wb.words = lower.split(' ');
@@ -578,25 +588,29 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     catch(e){ return ''; }
   }
 
+  // Resolves true only when one of the two mechanisms reports success, so a copy
+  // button never says "Copied" over a private key that did not reach the clipboard.
   function copyText(t){
-    if (!t) return;
+    if (!t) return Promise.resolve(false);
     if (navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(t).catch(function(){ fallbackCopy(t); });
-    } else { fallbackCopy(t); }
+      return navigator.clipboard.writeText(t).then(function(){ return true; }, function(){ return fallbackCopy(t); });
+    }
+    return Promise.resolve(fallbackCopy(t));
   }
   function fallbackCopy(t){
     var ta = document.createElement('textarea');
     ta.value = t; ta.style.position='fixed'; ta.style.top='-1000px'; ta.style.opacity='0';
     document.body.appendChild(ta); ta.focus(); ta.select();
-    try { document.execCommand('copy'); } catch(e){}
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch(e){}
     document.body.removeChild(ta);
+    return !!ok;
   }
 
   var state = {
     format: 'native33',     // native33 | bison15 | bip39-12 | bip39-24 | hex
     passphrase: '',
-    wallet: null,
-    generating: false
+    wallet: null
   };
 
   function strengthFor(fmt){ return fmt === 'bip39-12' ? 128 : 256; }
@@ -607,7 +621,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   function seedTitleFor(w){ return w && w.kind === 'hex' ? 'Recovery seed (hex)' : 'Recovery seed phrase'; }
   function seedNoteFor(w){
     if (!w) return '';
-    if (w.kind === 'native') return 'Decred PGP word list · 33 words · imports into Decrediton / dcrwallet';
+    if (w.kind === 'native') return 'Decred PGP word list · ' + w.words.length + ' words · imports into Decrediton / dcrwallet';
     if (w.kind === 'bison15') return '15-word seed · Cake Wallet · DCRDEX · Bison Wallet';
     if (w.kind === 'hex') return 'raw ' + hexBytes(w) + '-byte seed · dcrwallet hex import · keep it secret';
     return 'BIP39 · ' + (w.words ? w.words.length + ' words · ' : '')
@@ -633,14 +647,14 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     $('passWordHint').textContent = passWordHint(fmt);
   }
   function metaFor(w){
-    var f = w.kind === 'native' ? 'Decred native 33-word'
+    var f = w.kind === 'native' ? 'Decred native ' + w.words.length + '-word'
           : w.kind === 'bison15' ? 'Cake / DCRDEX / Bison 15-word'
           : w.kind === 'hex' ? 'raw hex seed'
           : 'BIP39 ' + (w.words ? w.words.length : '') + '-word' + (w.passphraseUsed ? ' + passphrase' : '');
     return 'Decred mainnet · ' + f + ' · secp256k1 · ' + w.path;
   }
   function printFmtLabel(w){
-    if (w.kind === 'native') return 'Decred native · 33-word seed';
+    if (w.kind === 'native') return 'Decred native · ' + w.words.length + '-word seed';
     if (w.kind === 'bison15') return 'Cake / DCRDEX / Bison · 15-word · birthday ' + fmtBday(w.birthday);
     if (w.kind === 'hex') return 'Raw hex seed (' + hexBytes(w) + ' bytes)';
     return 'BIP39 · ' + w.words.length + '-word seed' + (w.passphraseUsed ? ' + passphrase' : '');
@@ -696,8 +710,9 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     $('seedTitle').textContent = seedTitleFor(w);
     $('seedNote').textContent = seedNoteFor(w);
     $('meta').textContent = metaFor(w);
-    $('qrAddr').innerHTML = qrSvg(w.address, false);
-    $('qrWif').innerHTML = qrSvg(w.wif, true);
+    var qrA = qrSvg(w.address, false), qrW = qrSvg(w.wif, true); // card and print sheet share them
+    $('qrAddr').innerHTML = qrA;
+    $('qrWif').innerHTML = qrW;
 
     var isHex = (w.kind === 'hex');
     $('seedGrid').style.display = isHex ? 'none' : '';
@@ -719,8 +734,8 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     $('ps_path').textContent = w.path;
     $('ps_fmt').textContent = printFmtLabel(w);
     $('ps_seedlabel').textContent = printSeedLabel(w);
-    $('ps_qraddr').innerHTML = qrSvg(w.address, false);
-    $('ps_qrwif').innerHTML = qrSvg(w.wif, true);
+    $('ps_qraddr').innerHTML = qrA;
+    $('ps_qrwif').innerHTML = qrW;
     $('ps_passline').style.display = w.passphraseUsed ? 'block' : 'none';
     if (isHex){
       $('ps_words').innerHTML = '';
@@ -730,30 +745,43 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     } else renderPrintWords($('ps_words'), w.words);
   }
 
+  // Every key path checks this itself rather than trusting that its button was
+  // disabled: until the self-test has passed, or once anything has called fatal(),
+  // nothing may produce, import or copy a wallet.
+  function usable(){ return selfTestOk && !app.classList.contains('dead'); }
+
+  // Each generate() or import takes a new number; a generate whose number is no
+  // longer the latest when its awaits return was superseded, and drops its wallet
+  // rather than replacing the newer one on screen.
+  var walletSeq = 0;
+  function endGenerating(){
+    app.classList.remove('gen');
+    $('genLabel').textContent = 'Generate';
+  }
+
   async function generate(){
-    if (state.generating) return;
-    if (!enginesLoaded()){
-      // engines not ready yet; retry shortly
-      return setTimeout(generate, 60);
-    }
-    state.generating = true;
+    if (!usable()) return;
+    var seq = ++walletSeq, fmt = state.format, passphrase = state.passphrase;
     app.classList.add('gen');
     setRevealed(false);
     $('genLabel').textContent = 'Generating…';
     await new Promise(function(r){ setTimeout(r, 180); }); // let spinner paint
     try {
+      if (seq !== walletSeq) return;
       var w;
-      if (state.format === 'native33') w = await window.DCR.generateNativeWallet();
-      else if (state.format === 'bison15') w = await window.DCR.generate15Word();
-      else if (state.format === 'hex') w = await window.DCR.generateHexSeed();
+      if (fmt === 'native33') w = await window.DCR.generateNativeWallet();
+      else if (fmt === 'bison15') w = await window.DCR.generate15Word();
+      else if (fmt === 'hex') w = await window.DCR.generateHexSeed();
       else {
-        w = await window.DCR.generateWallet(strengthFor(state.format), state.passphrase);
+        w = await window.DCR.generateWallet(strengthFor(fmt), passphrase);
         w.kind = 'bip39'; w.words = w.mnemonic.split(' ');
-        w.passphraseUsed = !!state.passphrase;
+        w.passphraseUsed = !!passphrase;
       }
+      if (seq !== walletSeq || !usable()) return;
       state.wallet = w;
       renderWallet();
     } catch(e){
+      if (seq !== walletSeq) return;
       console.error('generate failed', e);
       // Leaving the previous wallet on screen is the dangerous outcome here: the
       // button appears dead, and pressing it again looks like it did nothing, so
@@ -764,12 +792,18 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       clearWallet();
       fatal('Key generation failed — ' + ((e && (e.userMessage || e.message)) || 'unknown error') + '.');
     } finally {
-      state.generating = false;
-      app.classList.remove('gen');
-      $('genLabel').textContent = 'Generate';
+      if (seq === walletSeq) endGenerating();
     }
   }
 
+  // Selecting a format generates a wallet in it. Clicking the segment that already
+  // matches the wallet on screen does nothing: "New wallet" is the regenerate
+  // control, and replacing an unsaved wallet on a confirming click loses it.
+  function onFormatClick(fmt){
+    if (!usable()) return;
+    if (state.wallet && kindToFormat(state.wallet) === fmt) return;
+    setFormat(fmt);
+  }
   function setFormat(fmt){
     state.format = fmt;
     var btns = $('fmtGroup').querySelectorAll('button');
@@ -791,6 +825,9 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   }
   // Promote a verified/imported seed to the main wallet card so it can be printed.
   function importWallet(res){
+    if (!usable()) return;
+    walletSeq++; // a generate still in flight must not overwrite this wallet
+    endGenerating();
     state.wallet = res;
     var fmt = kindToFormat(res);
     if (fmt){
@@ -809,10 +846,10 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     $('revealBtn').textContent = on ? '🙈 Hide secrets' : '👁 Reveal secrets';
   }
 
-  function flashCopied(btn){
-    btn.classList.add('copied');
+  function flashCopied(btn, ok){
+    btn.classList.toggle('copied', !!ok);
     if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', btn.textContent);
-    btn.textContent = '✓ Copied';
+    btn.textContent = ok ? '✓ Copied' : '✕ Copy failed';
     clearTimeout(btn._copyTimer); // per-button timer: two quick copies can't strand a button on "Copied"
     btn._copyTimer = setTimeout(function(){
       btn.classList.remove('copied');
@@ -822,10 +859,9 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
 
   function onCopy(e){
     var btn = e.currentTarget, field = btn.getAttribute('data-copy'), w = state.wallet;
-    if (!w) return;
+    if (!w || !usable()) return;
     var text = field==='addr' ? w.address : field==='wif' ? w.wif : (w.mnemonic || w.seedHex);
-    copyText(text);
-    flashCopied(btn);
+    copyText(text).then(function(ok){ flashCopied(btn, ok); });
   }
 
   // ----- verify panel -----
@@ -860,7 +896,8 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     var rev = document.createElement('button'); rev.className = 'copybtn smallbtn'; rev.textContent = '👁 Reveal key';
     rev.addEventListener('click', function(){ app.classList.toggle('vrevealed'); rev.textContent = app.classList.contains('vrevealed') ? '🙈 Hide key' : '👁 Reveal key'; });
     var cp = document.createElement('button'); cp.className = 'copybtn danger smallbtn'; cp.textContent = '⧉ Copy address';
-    cp.addEventListener('click', function(){ copyText(res.address); cp.textContent = '✓ Copied'; setTimeout(function(){ cp.textContent = '⧉ Copy address'; }, 1500); });
+    cp.setAttribute('data-label', '⧉ Copy address');
+    cp.addEventListener('click', function(){ copyText(res.address).then(function(ok){ flashCopied(cp, ok); }); });
     bar.appendChild(rev); bar.appendChild(cp);
     wf.appendChild(bar);
     left.appendChild(wf);
@@ -878,16 +915,27 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     var vv = document.createElement('div'); vv.className = 'v' + (coral ? ' coral' : ''); vv.textContent = v;
     f.appendChild(kk); f.appendChild(vv); return f;
   }
-  async function doVerify(){
+  // Bumped by every check and every edit of the inputs: a result is shown only if
+  // nothing has changed since its check started, so phrase A's address can never
+  // appear (with its import button) under phrase B.
+  var verifySeq = 0;
+  function onVerifyInput(){
+    verifySeq++;
+    $('vResult').innerHTML = '';
     app.classList.remove('vrevealed');
+  }
+  async function doVerify(){
+    if (!usable()) return;
+    app.classList.remove('vrevealed');
+    var seq = ++verifySeq;
     var btn = $('vCheck'); btn.disabled = true; var prev = btn.textContent; btn.textContent = 'Checking…';
     try {
       var res = await window.DCR.restoreFromInput($('vInput').value, $('vPass').value);
-      renderVerify(res, null);
+      if (seq === verifySeq && usable()) renderVerify(res, null);
     } catch(e){
-      renderVerify(null, e.userMessage || e.message || 'Could not read that seed.');
+      if (seq === verifySeq && usable()) renderVerify(null, e.userMessage || e.message || 'Could not read that seed.');
     } finally {
-      btn.disabled = false; btn.textContent = prev;
+      btn.disabled = !usable(); btn.textContent = prev;
     }
   }
 
@@ -942,17 +990,25 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
     var tz = await D.walletFromMnemonic('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about', 'TREZOR', 0);
     if (tz.address !== 'Dsn1KktBp4eWd7JSPt1HYkLdPbgtEvqZLsj')
       throw new Error('Self-test failed: BIP39 derivation mismatch.');
-    // 4. QR generator
-    if ((window.QR.encodeToSvg('selftest', { ecl:'MEDIUM', border:2, dark:'#000' }) || '').indexOf('<svg') < 0)
-      throw new Error('Self-test failed: QR generator broken.');
+    // 4. QR generator: the module matrix for the native vector's address, as rows of
+    //    0/1 joined by newlines, must hash to a known answer. The matrix was checked
+    //    against libqrencode (identical data and ECC codewords; only the mask choice
+    //    differs) and decoded back to the address by zbar. test/verify.js pins it too.
+    var qr = window.QR.encode('DsUobw8mjYbXT9BrrwkNt5NaUveJyqiBDtc', 'MEDIUM');
+    var rows = qr.modules.map(function(r){ return r.map(function(b){ return b ? '1' : '0'; }).join(''); }).join('\n');
+    var qrHash = D.bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rows))));
+    if (qrHash !== 'e6a2add1c67300f36797268d52481635cf6638777d387ee90afdea74c31e5179'
+        || (window.QR.encodeToSvg('selftest', { ecl:'MEDIUM', border:2, dark:'#000' }) || '').indexOf('<svg') < 0)
+      throw new Error('Self-test failed: QR generator mismatch.');
   }
 
   function fatal(msg){
     app.classList.add('dead');
     $('fatalBar').textContent = '✕ ' + msg + ' No keys have been generated.';
-    $('genBtn').disabled = true;
-    $('vCheck').disabled = true;
-    $('printBtn').disabled = true;
+    // Every control, not only Generate: New wallet, the format segments, copy, reveal
+    // and import all reach keys. The key paths also check usable() themselves.
+    var ctl = document.querySelectorAll('button, input, textarea');
+    for (var i=0;i<ctl.length;i++) ctl[i].disabled = true;
     updateBadge();
   }
 
@@ -971,7 +1027,7 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
   function init(){
     // controls
     $('fmtGroup').addEventListener('click', function(e){
-      var b = e.target.closest('button'); if (!b) return; setFormat(b.getAttribute('data-fmt'));
+      var b = e.target.closest('button'); if (!b) return; onFormatClick(b.getAttribute('data-fmt'));
     });
     $('pass').addEventListener('input', function(e){ state.passphrase = e.target.value; });
     $('genBtn').addEventListener('click', generate);
@@ -991,6 +1047,8 @@ input.text:disabled{opacity:.4;cursor:not-allowed;}
       if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleVerify(); }
     });
     $('vCheck').addEventListener('click', doVerify);
+    $('vInput').addEventListener('input', onVerifyInput);
+    $('vPass').addEventListener('input', onVerifyInput);
     $('verifyLink').addEventListener('click', function(){
       if (!app.classList.contains('vopen')) toggleVerify();
       $('vInput').focus();

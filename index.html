@@ -5654,8 +5654,12 @@ zoo`.split("\n"));
     out.set(src.subarray(off, off + n));
     return out;
   }
+  var typedArrayTag = Object.getOwnPropertyDescriptor(
+    Object.getPrototypeOf(Uint8Array.prototype),
+    Symbol.toStringTag
+  ).get;
   function isBytes3(v) {
-    return Object.prototype.toString.call(v) === "[object Uint8Array]";
+    return typedArrayTag.call(v) === "Uint8Array";
   }
   function typeName(v) {
     return Object.prototype.toString.call(v).slice(8, -1).toLowerCase();
@@ -6215,9 +6219,19 @@ zoo`.split("\n"));
     return "1".repeat(zeros) + out;
   }
   function maxBase58Length(decodedLen) {
+    if (!Number.isSafeInteger(decodedLen) || decodedLen < 0) {
+      throw err(
+        "not-an-integer",
+        "maxBase58Length",
+        `decoded length must be a non-negative integer, got ${shown(decodedLen)}`
+      );
+    }
     return Math.floor(decodedLen * 137 / 100) + 1;
   }
   function base58Decode(str) {
+    if (typeof str !== "string") {
+      throw err("invalid-argument", "base58Decode", `input must be a string, got ${typeName(str)}`);
+    }
     let zeros = 0;
     while (zeros < str.length && str[zeros] === "1") zeros++;
     let num = 0n;
@@ -6312,6 +6326,9 @@ zoo`.split("\n"));
     slip44: 1
   };
   var networks = { mainnet, testnet3, simnet, regnet };
+  function isPrefixBytes(p, n) {
+    return Array.isArray(p) && p.length === n && p.every((b) => Number.isInteger(b) && b >= 0 && b <= 255);
+  }
   var CURVE_ORDER = secp256k1.Point.Fn.ORDER;
   var ED25519_CURVE_ORDER = 2n ** 252n + 27742317777372353535851937790883648493n;
   function isValidPrivateKey(key) {
@@ -6332,6 +6349,9 @@ zoo`.split("\n"));
   }
   function publicKeyFromPrivate(privateKey, compressed = true) {
     assertPrivateKey(privateKey, "publicKeyFromPrivate");
+    if (typeof compressed !== "boolean") {
+      throw err("invalid-argument", "publicKeyFromPrivate", `compressed must be a boolean, got ${typeName(compressed)}`);
+    }
     return secp256k1.getPublicKey(privateKey, compressed);
   }
   function isValidPublicKey(key) {
@@ -6414,7 +6434,26 @@ zoo`.split("\n"));
       { network, kind: "pubkey-ecdsa", prefix: network.pubKeyAddrId }
     );
   }
-  function encode(prefix, payload) {
+  var ADDRESS_PREFIX_FIELDS = [
+    "pubKeyAddrId",
+    "pubKeyHashAddrId",
+    "pubKeyHashEdwardsAddrId",
+    "pubKeyHashSchnorrAddrId",
+    "scriptHashAddrId"
+  ];
+  function assertNetwork(network, who) {
+    const shaped = typeof network === "object" && network !== null && typeof network.name === "string" && ADDRESS_PREFIX_FIELDS.every((f) => isPrefixBytes(network[f], 2));
+    if (!shaped) {
+      throw err(
+        "invalid-argument",
+        who,
+        `network must be a Network with its address prefixes as byte pairs, got ${typeName(network)} (pass mainnet, testnet3, simnet or regnet)`
+      );
+    }
+  }
+  function encode(network, field, payload, who) {
+    assertNetwork(network, who);
+    const prefix = network[field];
     const data = new Uint8Array(2 + payload.length);
     data[0] = prefix[0];
     data[1] = prefix[1];
@@ -6429,7 +6468,7 @@ zoo`.split("\n"));
   function pubKeyHashAddress(hash, network) {
     assertHash20(hash, "pubKeyHashAddress");
     if (hash.length !== 20) throw err("bad-length", "pubKeyHashAddress", `hash must be 20 bytes, got ${hash.length}`);
-    return encode(network.pubKeyHashAddrId, hash);
+    return encode(network, "pubKeyHashAddrId", hash, "pubKeyHashAddress");
   }
   function addressFromPubKey(pubKey, network) {
     assertPubKey(pubKey, "addressFromPubKey");
@@ -6458,6 +6497,13 @@ zoo`.split("\n"));
       throw err("unsupported-signature-type", "encodeWif", `unknown signature type ${shown(signatureType)}`);
     }
     assertWifScalar(privateKey, signatureType, "encodeWif");
+    if (typeof network !== "object" || network === null || !isPrefixBytes(network.privateKeyId, 2)) {
+      throw err(
+        "invalid-argument",
+        "encodeWif",
+        `network must be a Network whose privateKeyId is a byte pair, got ${typeName(network)}`
+      );
+    }
     const payload = new Uint8Array(3 + 32);
     payload[0] = network.privateKeyId[0];
     payload[1] = network.privateKeyId[1];
@@ -6529,6 +6575,13 @@ zoo`.split("\n"));
       if (seed.length < 16 || seed.length > 64) {
         throw err("out-of-range", "ExtendedKey.fromSeed", `seed must be 16..64 bytes, got ${seed.length}`);
       }
+      if (typeof network !== "object" || network === null || !isPrefixBytes(network.hdPrivateKeyId, 4) || !isPrefixBytes(network.hdPublicKeyId, 4)) {
+        throw err(
+          "invalid-argument",
+          "ExtendedKey.fromSeed",
+          `network must be a Network whose extended-key versions are four bytes each, got ${typeName(network)}`
+        );
+      }
       const I = hmac(sha512, MASTER_HMAC_KEY, seed);
       const il = I.subarray(0, 32);
       const ir = I.subarray(32, 64);
@@ -6581,7 +6634,7 @@ zoo`.split("\n"));
     fingerprint() {
       return copyOf(this.identifierBytes(), 0, 4);
     }
-    /** The memoized digest itself. Never escapes this class. */
+    /** The memoized digest itself. Never handed to a caller. */
     identifierBytes() {
       if (this.cachedIdentifier === void 0) {
         this.cachedIdentifier = hash160(this.compressedPublicKey);
@@ -6723,7 +6776,7 @@ zoo`.split("\n"));
     }
     /** The standard P2PKH address for this key on its network. */
     address(network = this.network) {
-      return pubKeyHashAddress(hash160(this.compressedPublicKey), network);
+      return pubKeyHashAddress(this.identifierBytes(), network);
     }
     /** Serialize to the 78-byte BIP32 form (without the base58check checksum). */
     serialize() {
@@ -6896,6 +6949,9 @@ zoo`.split("\n"));
     return validateMnemonic(mnemonic, wordlist$1);
   }
   function entropyToMnemonic2(entropy, wordlist$1 = wordlist) {
+    if (!isBytes3(entropy)) {
+      throw err("invalid-argument", "entropyToMnemonic", `entropy must be a Uint8Array, got ${typeName(entropy)}`);
+    }
     if (entropy.length < 16 || entropy.length > 32 || entropy.length % 4 !== 0) {
       throw err(
         "bad-length",
@@ -6930,7 +6986,8 @@ zoo`.split("\n"));
   // src/dcr-engine.mjs
   /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
   function hexToBytes3(h) {
-    if (h.length % 2) h = "0" + h;
+    if (typeof h !== "string" || h.length % 2 || !/^[0-9a-fA-F]*$/.test(h))
+      throw new Error("hexToBytes: expected an even-length hex string");
     const a = new Uint8Array(h.length / 2);
     for (let i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16);
     return a;
@@ -6945,7 +7002,7 @@ zoo`.split("\n"));
   var pubFromPriv = (priv32) => publicKeyFromPrivate(priv32);
   async function derivePath(seed, indices) {
     let k = ExtendedKey.fromSeed(seed, mainnet);
-    for (const i of indices) k = k.derive(i >>> 0);
+    for (const i of indices) k = k.derive(i);
     return { key: k.privateKeyBytes(), chain: k.chainCode.slice() };
   }
   async function entropyToMnemonic3(entropy) {
@@ -6954,9 +7011,9 @@ zoo`.split("\n"));
   async function mnemonicToSeed2(mnemonic, passphrase = "") {
     return mnemonicToSeed(mnemonic, passphrase);
   }
+  var canonicalMnemonic = (m) => String(m).trim().toLowerCase().split(/\s+/).join(" ");
   async function validateMnemonic3(mnemonic) {
-    const norm = String(mnemonic).trim().toLowerCase().split(/\s+/).join(" ");
-    return validateMnemonic2(norm);
+    return validateMnemonic2(canonicalMnemonic(mnemonic));
   }
   var addressFromPub = (pubCompressed) => addressFromPubKey(pubCompressed, mainnet);
   var wifFromPriv = (priv32) => encodeWif(priv32, mainnet, SignatureType.Ecdsa);
@@ -6966,6 +7023,7 @@ zoo`.split("\n"));
     return b;
   }
   async function walletFromMnemonic(mnemonic, passphrase = "", index = 0) {
+    mnemonic = canonicalMnemonic(mnemonic);
     const seed = await mnemonicToSeed2(mnemonic, passphrase);
     const H = 2147483648;
     const node = await derivePath(seed, [44 + H, 42 + H, 0 + H, 0, index]);
@@ -6981,6 +7039,8 @@ zoo`.split("\n"));
     };
   }
   async function generateWallet(strength = 256, passphrase = "") {
+    if (![128, 160, 192, 224, 256].includes(strength))
+      throw new Error("generateWallet: strength must be 128, 160, 192, 224 or 256 bits");
     const entropy = randomBytes3(strength / 8);
     const mnemonic = await entropyToMnemonic3(entropy);
     return walletFromMnemonic(mnemonic, passphrase, 0);
@@ -7021,7 +7081,7 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
 <script>window.PGP_WORDLIST = ["aardvark","adroitness","absurd","adviser","accrue","aftermath","acme","aggregate","adrift","alkali","adult","almighty","afflict","amulet","ahead","amusement","aimless","antenna","Algol","applicant","allow","Apollo","alone","armistice","ammo","article","ancient","asteroid","apple","Atlantic","artist","atmosphere","assume","autopsy","Athens","Babylon","atlas","backwater","Aztec","barbecue","baboon","belowground","backfield","bifocals","backward","bodyguard","banjo","bookseller","beaming","borderline","bedlamp","bottomless","beehive","Bradbury","beeswax","bravado","befriend","Brazilian","Belfast","breakaway","berserk","Burlington","billiard","businessman","bison","butterfat","blackjack","Camelot","blockade","candidate","blowtorch","cannonball","bluebird","Capricorn","bombast","caravan","bookshelf","caretaker","brackish","celebrate","breadline","cellulose","breakup","certify","brickyard","chambermaid","briefcase","Cherokee","Burbank","Chicago","button","clergyman","buzzard","coherence","cement","combustion","chairlift","commando","chatter","company","checkup","component","chisel","concurrent","choking","confidence","chopper","conformist","Christmas","congregate","clamshell","consensus","classic","consulting","classroom","corporate","cleanup","corrosion","clockwork","councilman","cobra","crossover","commence","crucifix","concert","cumbersome","cowbell","customer","crackdown","Dakota","cranky","decadence","crowfoot","December","crucial","decimal","crumpled","designing","crusade","detector","cubic","detergent","dashboard","determine","deadbolt","dictator","deckhand","dinosaur","dogsled","direction","dragnet","disable","drainage","disbelief","dreadful","disruptive","drifter","distortion","dropper","document","drumbeat","embezzle","drunken","enchanting","Dupont","enrollment","dwelling","enterprise","eating","equation","edict","equipment","egghead","escapade","eightball","Eskimo","endorse","everyday","endow","examine","enlist","existence","erase","exodus","escape","fascinate","exceed","filament","eyeglass","finicky","eyetooth","forever","facial","fortitude","fallout","frequency","flagpole","gadgetry","flatfoot","Galveston","flytrap","getaway","fracture","glossary","framework","gossamer","freedom","graduate","frighten","gravity","gazelle","guitarist","Geiger","hamburger","glitter","Hamilton","glucose","handiwork","goggles","hazardous","goldfish","headwaters","gremlin","hemisphere","guidance","hesitate","hamlet","hideaway","highchair","holiness","hockey","hurricane","indoors","hydraulic","indulge","impartial","inverse","impetus","involve","inception","island","indigo","jawbone","inertia","keyboard","infancy","kickoff","inferno","kiwi","informant","klaxon","insincere","locale","insurgent","lockup","integrate","merit","intention","minnow","inventive","miser","Istanbul","Mohawk","Jamaica","mural","Jupiter","music","leprosy","necklace","letterhead","Neptune","liberty","newborn","maritime","nightbird","matchmaker","Oakland","maverick","obtuse","Medusa","offload","megaton","optic","microscope","orca","microwave","payday","midsummer","peachy","millionaire","pheasant","miracle","physique","misnomer","playhouse","molasses","Pluto","molecule","preclude","Montana","prefer","monument","preshrunk","mosquito","printer","narrative","prowler","nebula","pupil","newsletter","puppy","Norwegian","python","October","quadrant","Ohio","quiver","onlooker","quota","opulent","ragtime","Orlando","ratchet","outfielder","rebirth","Pacific","reform","pandemic","regain","Pandora","reindeer","paperweight","rematch","paragon","repay","paragraph","retouch","paramount","revenge","passenger","reward","pedigree","rhythm","Pegasus","ribcage","penetrate","ringbolt","perceptive","robust","performance","rocker","pharmacy","ruffled","phonetic","sailboat","photograph","sawdust","pioneer","scallion","pocketful","scenic","politeness","scorecard","positive","Scotland","potato","seabird","processor","select","provincial","sentence","proximate","shadow","puberty","shamrock","publisher","showgirl","pyramid","skullcap","quantity","skydive","racketeer","slingshot","rebellion","slowdown","recipe","snapline","recover","snapshot","repellent","snowcap","replica","snowslide","reproduce","solo","resistor","southward","responsive","soybean","retraction","spaniel","retrieval","spearhead","retrospect","spellbind","revenue","spheroid","revival","spigot","revolver","spindle","sandalwood","spyglass","sardonic","stagehand","Saturday","stagnate","savagery","stairway","scavenger","standard","sensation","stapler","sociable","steamship","souvenir","sterling","specialist","stockman","speculate","stopwatch","stethoscope","stormy","stupendous","sugar","supportive","surmount","surrender","suspense","suspicious","sweatband","sympathy","swelter","tambourine","tactics","telephone","talon","therapist","tapeworm","tobacco","tempest","tolerance","tiger","tomorrow","tissue","torpedo","tonic","tradition","topmost","travesty","tracker","trombonist","transit","truncated","trauma","typewriter","treadmill","ultimate","Trojan","undaunted","trouble","underfoot","tumor","unicorn","tunnel","unify","tycoon","universe","uncut","unravel","unearth","upcoming","unwind","vacancy","uproot","vagabond","upset","vertigo","upshot","Virginia","vapor","visitor","village","vocalist","virus","voyager","Vulcan","warranty","waffle","Waterloo","wallet","whimsical","watchword","Wichita","wayside","Wilmington","willow","Wyoming","woodlark","yesteryear","Zulu","Yucatan"];</script>
 <script>/* qrcode.js — self-contained QR Code generator (offline, no deps).
  * Faithful port of Project Nayuki's public-domain QR Code generator.
- * window.QR.encodeToSvg(text, {ecl, scale, border, dark, light}) -> SVG string.
+ * window.QR.encodeToSvg(text, {ecl, border, dark, light}) -> SVG string (scales to its box).
  * window.QR.encode(text, ecl) -> {size, modules[y][x] bool}. */
 (function () {
   'use strict';
@@ -7408,7 +7468,7 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
   }
   function getBit(x, i) { return ((x >>> i) & 1) !== 0; }
 
-  function encodeSegments(segs, ecl, minVer = 1, maxVer = 40, mask = -1, boostEcl = true) {
+  function encodeSegments(segs, ecl, minVer = MIN_VERSION, maxVer = MAX_VERSION, mask = -1, boostEcl = true) {
     let version, dataUsedBits;
     for (version = minVer; ; version++) {
       const dataCapacityBits = getNumDataCodewords(version, ecl) * 8;
@@ -7590,6 +7650,9 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     var trimmed = (text||'').trim().replace(/\s+/g,' ');
     if (!trimmed) throw E('Enter a seed phrase or hex seed.');
     var tokens = trimmed.split(' ');
+    // No format accepted here is longer than a 64-byte native seed (65 words); refuse
+    // a longer paste before scanning and hashing all of it.
+    if (tokens.length > 65) throw E('Too many words — no supported seed is longer than 65 words.');
 
     // single token -> hex seed (matches dcrwallet DecodeUserInput)
     if (tokens.length === 1){
@@ -7603,8 +7666,10 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     }
 
     // Exactly 15 words -> Cake Wallet / DCRDEX / Bison Wallet seed (entropy + birthday).
-    // (A 15-word phrase is not a valid Decred native seed, and Bison/standard-BIP39 15
-    //  share the same checksum, so the Bison interpretation is the meaningful one here.)
+    // (A 15-word phrase is not a valid Decred native seed. Bison and standard BIP39 15
+    //  both put a 5-bit sha256 checksum after the same first 160 bits, so every valid
+    //  BIP39 15-word phrase is also a valid Bison one; there is no telling them apart,
+    //  and the Bison interpretation is the meaningful one here.)
     if (tokens.length === 15){
       var dec = await decode15Word(tokens); // throws precise word/checksum errors
       var canon15 = await encode15Word(dec.entropy, dec.unixSecs);
@@ -7615,8 +7680,13 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
       return w15;
     }
 
-    var allPgp = tokens.every(function(t){ return IDX[t.toLowerCase()] !== undefined; });
+    var pgpCount = tokens.filter(function(t){ return IDX[t.toLowerCase()] !== undefined; }).length;
+    var allPgp = pgpCount === tokens.length;
     var nativeLikely = !BIP39_COUNTS[tokens.length]; // counts that are NOT a BIP39 length
+
+    // A length BIP39 does not use, made mostly of PGP words, is a native phrase with a
+    // typo: let the native decoder name the word instead of the generic message below.
+    if (!allPgp && nativeLikely && pgpCount * 2 > tokens.length) await decodeSeedMnemonic(tokens); // throws
 
     if (allPgp){
       try {
@@ -7637,7 +7707,7 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
 
     // BIP39 path
     var valid = await DCR.validateMnemonic(trimmed);
-    if (!valid) throw E('Not a recognized Decred (33-word) or BIP39 (12/15/18/21/24-word) seed phrase. Check for typos or missing words.');
+    if (!valid) throw E('Not a recognized Decred (33-word) or BIP39 (12/18/21/24-word) seed phrase. Check for typos or missing words.');
     var lower = trimmed.toLowerCase();
     var wb = await DCR.walletFromMnemonic(lower, passphrase, 0);
     wb.kind = 'bip39'; wb.mnemonic = lower; wb.words = lower.split(' ');
@@ -7672,25 +7742,29 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     catch(e){ return ''; }
   }
 
+  // Resolves true only when one of the two mechanisms reports success, so a copy
+  // button never says "Copied" over a private key that did not reach the clipboard.
   function copyText(t){
-    if (!t) return;
+    if (!t) return Promise.resolve(false);
     if (navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(t).catch(function(){ fallbackCopy(t); });
-    } else { fallbackCopy(t); }
+      return navigator.clipboard.writeText(t).then(function(){ return true; }, function(){ return fallbackCopy(t); });
+    }
+    return Promise.resolve(fallbackCopy(t));
   }
   function fallbackCopy(t){
     var ta = document.createElement('textarea');
     ta.value = t; ta.style.position='fixed'; ta.style.top='-1000px'; ta.style.opacity='0';
     document.body.appendChild(ta); ta.focus(); ta.select();
-    try { document.execCommand('copy'); } catch(e){}
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch(e){}
     document.body.removeChild(ta);
+    return !!ok;
   }
 
   var state = {
     format: 'native33',     // native33 | bison15 | bip39-12 | bip39-24 | hex
     passphrase: '',
-    wallet: null,
-    generating: false
+    wallet: null
   };
 
   function strengthFor(fmt){ return fmt === 'bip39-12' ? 128 : 256; }
@@ -7701,7 +7775,7 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
   function seedTitleFor(w){ return w && w.kind === 'hex' ? 'Recovery seed (hex)' : 'Recovery seed phrase'; }
   function seedNoteFor(w){
     if (!w) return '';
-    if (w.kind === 'native') return 'Decred PGP word list · 33 words · imports into Decrediton / dcrwallet';
+    if (w.kind === 'native') return 'Decred PGP word list · ' + w.words.length + ' words · imports into Decrediton / dcrwallet';
     if (w.kind === 'bison15') return '15-word seed · Cake Wallet · DCRDEX · Bison Wallet';
     if (w.kind === 'hex') return 'raw ' + hexBytes(w) + '-byte seed · dcrwallet hex import · keep it secret';
     return 'BIP39 · ' + (w.words ? w.words.length + ' words · ' : '')
@@ -7727,14 +7801,14 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     $('passWordHint').textContent = passWordHint(fmt);
   }
   function metaFor(w){
-    var f = w.kind === 'native' ? 'Decred native 33-word'
+    var f = w.kind === 'native' ? 'Decred native ' + w.words.length + '-word'
           : w.kind === 'bison15' ? 'Cake / DCRDEX / Bison 15-word'
           : w.kind === 'hex' ? 'raw hex seed'
           : 'BIP39 ' + (w.words ? w.words.length : '') + '-word' + (w.passphraseUsed ? ' + passphrase' : '');
     return 'Decred mainnet · ' + f + ' · secp256k1 · ' + w.path;
   }
   function printFmtLabel(w){
-    if (w.kind === 'native') return 'Decred native · 33-word seed';
+    if (w.kind === 'native') return 'Decred native · ' + w.words.length + '-word seed';
     if (w.kind === 'bison15') return 'Cake / DCRDEX / Bison · 15-word · birthday ' + fmtBday(w.birthday);
     if (w.kind === 'hex') return 'Raw hex seed (' + hexBytes(w) + ' bytes)';
     return 'BIP39 · ' + w.words.length + '-word seed' + (w.passphraseUsed ? ' + passphrase' : '');
@@ -7790,8 +7864,9 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     $('seedTitle').textContent = seedTitleFor(w);
     $('seedNote').textContent = seedNoteFor(w);
     $('meta').textContent = metaFor(w);
-    $('qrAddr').innerHTML = qrSvg(w.address, false);
-    $('qrWif').innerHTML = qrSvg(w.wif, true);
+    var qrA = qrSvg(w.address, false), qrW = qrSvg(w.wif, true); // card and print sheet share them
+    $('qrAddr').innerHTML = qrA;
+    $('qrWif').innerHTML = qrW;
 
     var isHex = (w.kind === 'hex');
     $('seedGrid').style.display = isHex ? 'none' : '';
@@ -7813,8 +7888,8 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     $('ps_path').textContent = w.path;
     $('ps_fmt').textContent = printFmtLabel(w);
     $('ps_seedlabel').textContent = printSeedLabel(w);
-    $('ps_qraddr').innerHTML = qrSvg(w.address, false);
-    $('ps_qrwif').innerHTML = qrSvg(w.wif, true);
+    $('ps_qraddr').innerHTML = qrA;
+    $('ps_qrwif').innerHTML = qrW;
     $('ps_passline').style.display = w.passphraseUsed ? 'block' : 'none';
     if (isHex){
       $('ps_words').innerHTML = '';
@@ -7824,30 +7899,43 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     } else renderPrintWords($('ps_words'), w.words);
   }
 
+  // Every key path checks this itself rather than trusting that its button was
+  // disabled: until the self-test has passed, or once anything has called fatal(),
+  // nothing may produce, import or copy a wallet.
+  function usable(){ return selfTestOk && !app.classList.contains('dead'); }
+
+  // Each generate() or import takes a new number; a generate whose number is no
+  // longer the latest when its awaits return was superseded, and drops its wallet
+  // rather than replacing the newer one on screen.
+  var walletSeq = 0;
+  function endGenerating(){
+    app.classList.remove('gen');
+    $('genLabel').textContent = 'Generate';
+  }
+
   async function generate(){
-    if (state.generating) return;
-    if (!enginesLoaded()){
-      // engines not ready yet; retry shortly
-      return setTimeout(generate, 60);
-    }
-    state.generating = true;
+    if (!usable()) return;
+    var seq = ++walletSeq, fmt = state.format, passphrase = state.passphrase;
     app.classList.add('gen');
     setRevealed(false);
     $('genLabel').textContent = 'Generating…';
     await new Promise(function(r){ setTimeout(r, 180); }); // let spinner paint
     try {
+      if (seq !== walletSeq) return;
       var w;
-      if (state.format === 'native33') w = await window.DCR.generateNativeWallet();
-      else if (state.format === 'bison15') w = await window.DCR.generate15Word();
-      else if (state.format === 'hex') w = await window.DCR.generateHexSeed();
+      if (fmt === 'native33') w = await window.DCR.generateNativeWallet();
+      else if (fmt === 'bison15') w = await window.DCR.generate15Word();
+      else if (fmt === 'hex') w = await window.DCR.generateHexSeed();
       else {
-        w = await window.DCR.generateWallet(strengthFor(state.format), state.passphrase);
+        w = await window.DCR.generateWallet(strengthFor(fmt), passphrase);
         w.kind = 'bip39'; w.words = w.mnemonic.split(' ');
-        w.passphraseUsed = !!state.passphrase;
+        w.passphraseUsed = !!passphrase;
       }
+      if (seq !== walletSeq || !usable()) return;
       state.wallet = w;
       renderWallet();
     } catch(e){
+      if (seq !== walletSeq) return;
       console.error('generate failed', e);
       // Leaving the previous wallet on screen is the dangerous outcome here: the
       // button appears dead, and pressing it again looks like it did nothing, so
@@ -7858,12 +7946,18 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
       clearWallet();
       fatal('Key generation failed — ' + ((e && (e.userMessage || e.message)) || 'unknown error') + '.');
     } finally {
-      state.generating = false;
-      app.classList.remove('gen');
-      $('genLabel').textContent = 'Generate';
+      if (seq === walletSeq) endGenerating();
     }
   }
 
+  // Selecting a format generates a wallet in it. Clicking the segment that already
+  // matches the wallet on screen does nothing: "New wallet" is the regenerate
+  // control, and replacing an unsaved wallet on a confirming click loses it.
+  function onFormatClick(fmt){
+    if (!usable()) return;
+    if (state.wallet && kindToFormat(state.wallet) === fmt) return;
+    setFormat(fmt);
+  }
   function setFormat(fmt){
     state.format = fmt;
     var btns = $('fmtGroup').querySelectorAll('button');
@@ -7885,6 +7979,9 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
   }
   // Promote a verified/imported seed to the main wallet card so it can be printed.
   function importWallet(res){
+    if (!usable()) return;
+    walletSeq++; // a generate still in flight must not overwrite this wallet
+    endGenerating();
     state.wallet = res;
     var fmt = kindToFormat(res);
     if (fmt){
@@ -7903,10 +8000,10 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     $('revealBtn').textContent = on ? '🙈 Hide secrets' : '👁 Reveal secrets';
   }
 
-  function flashCopied(btn){
-    btn.classList.add('copied');
+  function flashCopied(btn, ok){
+    btn.classList.toggle('copied', !!ok);
     if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', btn.textContent);
-    btn.textContent = '✓ Copied';
+    btn.textContent = ok ? '✓ Copied' : '✕ Copy failed';
     clearTimeout(btn._copyTimer); // per-button timer: two quick copies can't strand a button on "Copied"
     btn._copyTimer = setTimeout(function(){
       btn.classList.remove('copied');
@@ -7916,10 +8013,9 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
 
   function onCopy(e){
     var btn = e.currentTarget, field = btn.getAttribute('data-copy'), w = state.wallet;
-    if (!w) return;
+    if (!w || !usable()) return;
     var text = field==='addr' ? w.address : field==='wif' ? w.wif : (w.mnemonic || w.seedHex);
-    copyText(text);
-    flashCopied(btn);
+    copyText(text).then(function(ok){ flashCopied(btn, ok); });
   }
 
   // ----- verify panel -----
@@ -7954,7 +8050,8 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     var rev = document.createElement('button'); rev.className = 'copybtn smallbtn'; rev.textContent = '👁 Reveal key';
     rev.addEventListener('click', function(){ app.classList.toggle('vrevealed'); rev.textContent = app.classList.contains('vrevealed') ? '🙈 Hide key' : '👁 Reveal key'; });
     var cp = document.createElement('button'); cp.className = 'copybtn danger smallbtn'; cp.textContent = '⧉ Copy address';
-    cp.addEventListener('click', function(){ copyText(res.address); cp.textContent = '✓ Copied'; setTimeout(function(){ cp.textContent = '⧉ Copy address'; }, 1500); });
+    cp.setAttribute('data-label', '⧉ Copy address');
+    cp.addEventListener('click', function(){ copyText(res.address).then(function(ok){ flashCopied(cp, ok); }); });
     bar.appendChild(rev); bar.appendChild(cp);
     wf.appendChild(bar);
     left.appendChild(wf);
@@ -7972,16 +8069,27 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     var vv = document.createElement('div'); vv.className = 'v' + (coral ? ' coral' : ''); vv.textContent = v;
     f.appendChild(kk); f.appendChild(vv); return f;
   }
-  async function doVerify(){
+  // Bumped by every check and every edit of the inputs: a result is shown only if
+  // nothing has changed since its check started, so phrase A's address can never
+  // appear (with its import button) under phrase B.
+  var verifySeq = 0;
+  function onVerifyInput(){
+    verifySeq++;
+    $('vResult').innerHTML = '';
     app.classList.remove('vrevealed');
+  }
+  async function doVerify(){
+    if (!usable()) return;
+    app.classList.remove('vrevealed');
+    var seq = ++verifySeq;
     var btn = $('vCheck'); btn.disabled = true; var prev = btn.textContent; btn.textContent = 'Checking…';
     try {
       var res = await window.DCR.restoreFromInput($('vInput').value, $('vPass').value);
-      renderVerify(res, null);
+      if (seq === verifySeq && usable()) renderVerify(res, null);
     } catch(e){
-      renderVerify(null, e.userMessage || e.message || 'Could not read that seed.');
+      if (seq === verifySeq && usable()) renderVerify(null, e.userMessage || e.message || 'Could not read that seed.');
     } finally {
-      btn.disabled = false; btn.textContent = prev;
+      btn.disabled = !usable(); btn.textContent = prev;
     }
   }
 
@@ -8036,17 +8144,25 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
     var tz = await D.walletFromMnemonic('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about', 'TREZOR', 0);
     if (tz.address !== 'Dsn1KktBp4eWd7JSPt1HYkLdPbgtEvqZLsj')
       throw new Error('Self-test failed: BIP39 derivation mismatch.');
-    // 4. QR generator
-    if ((window.QR.encodeToSvg('selftest', { ecl:'MEDIUM', border:2, dark:'#000' }) || '').indexOf('<svg') < 0)
-      throw new Error('Self-test failed: QR generator broken.');
+    // 4. QR generator: the module matrix for the native vector's address, as rows of
+    //    0/1 joined by newlines, must hash to a known answer. The matrix was checked
+    //    against libqrencode (identical data and ECC codewords; only the mask choice
+    //    differs) and decoded back to the address by zbar. test/verify.js pins it too.
+    var qr = window.QR.encode('DsUobw8mjYbXT9BrrwkNt5NaUveJyqiBDtc', 'MEDIUM');
+    var rows = qr.modules.map(function(r){ return r.map(function(b){ return b ? '1' : '0'; }).join(''); }).join('\n');
+    var qrHash = D.bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rows))));
+    if (qrHash !== 'e6a2add1c67300f36797268d52481635cf6638777d387ee90afdea74c31e5179'
+        || (window.QR.encodeToSvg('selftest', { ecl:'MEDIUM', border:2, dark:'#000' }) || '').indexOf('<svg') < 0)
+      throw new Error('Self-test failed: QR generator mismatch.');
   }
 
   function fatal(msg){
     app.classList.add('dead');
     $('fatalBar').textContent = '✕ ' + msg + ' No keys have been generated.';
-    $('genBtn').disabled = true;
-    $('vCheck').disabled = true;
-    $('printBtn').disabled = true;
+    // Every control, not only Generate: New wallet, the format segments, copy, reveal
+    // and import all reach keys. The key paths also check usable() themselves.
+    var ctl = document.querySelectorAll('button, input, textarea');
+    for (var i=0;i<ctl.length;i++) ctl[i].disabled = true;
     updateBadge();
   }
 
@@ -8065,7 +8181,7 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
   function init(){
     // controls
     $('fmtGroup').addEventListener('click', function(e){
-      var b = e.target.closest('button'); if (!b) return; setFormat(b.getAttribute('data-fmt'));
+      var b = e.target.closest('button'); if (!b) return; onFormatClick(b.getAttribute('data-fmt'));
     });
     $('pass').addEventListener('input', function(e){ state.passphrase = e.target.value; });
     $('genBtn').addEventListener('click', generate);
@@ -8085,6 +8201,8 @@ window.BIP39_WORDLIST = "abandon ability able about above absent absorb abstract
       if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleVerify(); }
     });
     $('vCheck').addEventListener('click', doVerify);
+    $('vInput').addEventListener('input', onVerifyInput);
+    $('vPass').addEventListener('input', onVerifyInput);
     $('verifyLink').addEventListener('click', function(){
       if (!app.classList.contains('vopen')) toggleVerify();
       $('vInput').focus();

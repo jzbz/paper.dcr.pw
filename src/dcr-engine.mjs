@@ -6,9 +6,9 @@
  * the standard KDFs come from the audited @noble / @scure packages that dcr-ts
  * builds on, instead of being hand-implemented here.
  *
- * The public surface (window.DCR.*) is identical to the old engine, so
- * index.html and test/*.js are unchanged. Two behavioural changes, both bug
- * fixes: WIF uses dcrd's single-BLAKE-256 checksum (the old engine used a
+ * The public surface (window.DCR.*) kept the old engine's names, minus three
+ * no-ops removed later (see the BIP39 section). Two behavioural changes from
+ * the old engine, both bug fixes: WIF uses dcrd's single-BLAKE-256 checksum (the old engine used a
  * double-BLAKE-256 checksum, producing WIFs that dcrwallet/Decrediton reject),
  * and hardened derivation follows dcrd's hdkeychain rather than strict BIP32
  * (ExtendedKey.derive() is the Decred variant; deriveBip32Std is the strict
@@ -39,9 +39,13 @@ import { ripemd160 } from "@noble/hashes/legacy.js";
 // their own.
 /*! noble-hashes - MIT License (c) 2022 Paul Miller (paulmillr.com) */
 
-// ---------- byte helpers (identical to the old engine) ----------
+// ---------- byte helpers ----------
+// Strict: an odd length or a non-hex character throws rather than being padded
+// or read as a zero byte, so two different malformed strings cannot collapse
+// into one valid-looking seed.
 function hexToBytes(h) {
-  if (h.length % 2) h = "0" + h;
+  if (typeof h !== "string" || h.length % 2 || !/^[0-9a-fA-F]*$/.test(h))
+    throw new Error("hexToBytes: expected an even-length hex string");
   const a = new Uint8Array(h.length / 2);
   for (let i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16);
   return a;
@@ -60,9 +64,11 @@ const base58checkDcr = (payload) => checkEncode(payload);
 const pubFromPriv = (priv32) => publicKeyFromPrivate(priv32); // 33-byte compressed
 
 // ---------- BIP32 (returns the old {key, chain} node shape) ----------
+// Indices go to dcr-ts as given: it refuses a non-integer or anything outside
+// 0..2^32-1, where `i >>> 0` used to wrap 2^32 to child 0.
 async function derivePath(seed, indices) {
   let k = ExtendedKey.fromSeed(seed, mainnet);
-  for (const i of indices) k = k.derive(i >>> 0);
+  for (const i of indices) k = k.derive(i);
   return { key: k.privateKeyBytes(), chain: k.chainCode.slice() };
 }
 
@@ -82,10 +88,12 @@ async function entropyToMnemonic(entropy) {
 async function mnemonicToSeed(mnemonic, passphrase = "") {
   return dcrMnemonicToSeed(mnemonic, passphrase);
 }
+// The old engine's leniency: trim, lowercase, collapse whitespace. validate and
+// walletFromMnemonic both apply it, so a phrase that validates derives the
+// wallet its canonical form names, not a different one from its raw spelling.
+const canonicalMnemonic = (m) => String(m).trim().toLowerCase().split(/\s+/).join(" ");
 async function validateMnemonic(mnemonic) {
-  // Preserve the old engine's leniency: trim, lowercase, collapse whitespace.
-  const norm = String(mnemonic).trim().toLowerCase().split(/\s+/).join(" ");
-  return dcrValidateMnemonic(norm);
+  return dcrValidateMnemonic(canonicalMnemonic(mnemonic));
 }
 
 // ---------- Decred address / WIF ----------
@@ -100,6 +108,7 @@ function randomBytes(n) {
   return b;
 }
 async function walletFromMnemonic(mnemonic, passphrase = "", index = 0) {
+  mnemonic = canonicalMnemonic(mnemonic);
   const seed = await mnemonicToSeed(mnemonic, passphrase);
   const H = 0x80000000;
   const node = await derivePath(seed, [44 + H, 42 + H, 0 + H, 0, index]);
@@ -115,6 +124,8 @@ async function walletFromMnemonic(mnemonic, passphrase = "", index = 0) {
   };
 }
 async function generateWallet(strength = 256, passphrase = "") {
+  if (![128, 160, 192, 224, 256].includes(strength))
+    throw new Error("generateWallet: strength must be 128, 160, 192, 224 or 256 bits");
   const entropy = randomBytes(strength / 8);
   const mnemonic = await entropyToMnemonic(entropy);
   return walletFromMnemonic(mnemonic, passphrase, 0);

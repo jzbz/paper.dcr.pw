@@ -1,6 +1,6 @@
 /* qrcode.js — self-contained QR Code generator (offline, no deps).
  * Faithful port of Project Nayuki's public-domain QR Code generator.
- * window.QR.encodeToSvg(text, {ecl, scale, border, dark, light}) -> SVG string.
+ * window.QR.encodeToSvg(text, {ecl, border, dark, light}) -> SVG string (scales to its box).
  * window.QR.encode(text, ecl) -> {size, modules[y][x] bool}. */
 (function () {
   'use strict';
@@ -387,7 +387,7 @@
   }
   function getBit(x, i) { return ((x >>> i) & 1) !== 0; }
 
-  function encodeSegments(segs, ecl, minVer = 1, maxVer = 40, mask = -1, boostEcl = true) {
+  function encodeSegments(segs, ecl, minVer = MIN_VERSION, maxVer = MAX_VERSION, mask = -1, boostEcl = true) {
     let version, dataUsedBits;
     for (version = minVer; ; version++) {
       const dataCapacityBits = getNumDataCodewords(version, ecl) * 8;

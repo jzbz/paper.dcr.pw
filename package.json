@@ -7,11 +7,11 @@
     "bundle": "node bundle.mjs",
     "build": "npm run bundle && node build.js",
     "pretest": "npm run bundle",
-    "test": "node test/verify.js && node test/verify15.js"
+    "test": "node test/verify.js && node test/verify15.js && node test/deliverable.js"
   },
   "devDependencies": {
     "@noble/hashes": "^2.4.0",
-    "dcr-ts": "^0.4.0",
+    "dcr-ts": "^0.5.0",
     "esbuild": "^0.28.1"
   }
 }
